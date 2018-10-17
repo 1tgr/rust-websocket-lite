@@ -14,13 +14,26 @@ extern crate byteorder;
 extern crate bytes;
 extern crate futures;
 extern crate httparse;
-extern crate native_tls;
 extern crate rand;
 extern crate take_mut;
 extern crate tokio_io;
 extern crate tokio_tcp;
-extern crate tokio_tls;
 extern crate url;
+
+#[cfg(feature = "ssl-native-tls")]
+extern crate native_tls;
+
+#[cfg(feature = "ssl-native-tls")]
+extern crate tokio_tls;
+
+#[cfg(feature = "ssl-openssl")]
+extern crate openssl;
+
+#[cfg(feature = "ssl-openssl")]
+extern crate tokio_openssl;
+
+#[cfg(all(feature = "ssl-native-tls", feature = "ssl-openssl"))]
+compile_error!("Features ssl-native-tls and ssl-openssl can't be used at the same time");
 
 use std::error;
 use std::io::{self, Cursor, Read};
@@ -36,14 +49,76 @@ use byteorder::{BigEndian, ReadBytesExt};
 use futures::{Future, Stream};
 use futures::future::{self, Either, IntoFuture};
 use httparse::Response;
-use native_tls::TlsConnector;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_tls::TlsConnectorExt;
 use tokio_tcp::TcpStream;
 use url::Url;
 
 #[allow(deprecated)]
 use tokio_io::codec::{Decoder, Encoder, Framed};
+
+#[cfg(feature = "ssl-native-tls")]
+mod ssl {
+    use futures::{Future, IntoFuture};
+    use native_tls::TlsConnector;
+    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio_tls::{TlsConnectorExt, TlsStream};
+
+    use super::Error;
+
+    pub fn wrap<S: AsyncRead + AsyncWrite>(
+        domain: String,
+        stream: S,
+    ) -> impl Future<Item = TlsStream<S>, Error = Error> {
+        TlsConnector::builder()
+            .and_then(|builder| builder.build())
+            .map_err(Into::into)
+            .into_future()
+            .and_then(move |cx| {
+                cx.connect_async(&domain, stream)
+                    .map_err(Into::into)
+            })
+    }
+}
+
+#[cfg(feature = "ssl-openssl")]
+mod ssl {
+    use std::env;
+    use std::io::Write;
+    use std::fs::File;
+    use std::sync::Mutex;
+
+    use futures::{Future, IntoFuture};
+    use openssl::ssl::{SslConnector, SslMethod};
+    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio_openssl::{SslConnectorExt, SslStream};
+
+    use super::Error;
+
+    pub fn wrap<S: AsyncRead + AsyncWrite>(
+        domain: String,
+        stream: S,
+    ) -> impl Future<Item = SslStream<S>, Error = Error> {
+        SslConnector::builder(SslMethod::tls())
+            .map_err(Into::into)
+            .into_future()
+            .and_then(|mut cx| {
+                if let Ok(filename) = env::var("SSLKEYLOGFILE") {
+                    let file = Mutex::new(File::create(filename)?);
+                    cx.set_keylog_callback(move |_ssl, line| {
+                        let mut file = file.lock().unwrap();
+                        let _ = writeln!(&mut file, "{}", line);
+                    });
+                }
+
+                Ok(cx)
+            })
+            .and_then(move |cx| {
+                cx.build()
+                    .connect_async(&domain, stream)
+                    .map_err(Into::into)
+            })
+    }
+}
 
 /// Represents errors that can be exposed by this crate.
 pub type Error = Box<error::Error + Sync + Send + 'static>;
@@ -396,22 +471,13 @@ impl ClientBuilder {
             .and_then(|addr| TcpStream::connect(&addr).map_err(Into::into))
             .and_then(move |stream| {
                 if self.url.scheme() == "wss" {
-                    Either::A(
-                        TlsConnector::builder()
-                            .and_then(|builder| builder.build())
-                            .map_err(Into::into)
-                            .into_future()
-                            .and_then(move |cx| {
-                                cx.connect_async(self.url.domain().unwrap_or(""), stream)
-                                    .map_err(Into::into)
-                                    .map(|stream| {
-                                        let b: Box<
-                                            AsyncNetworkStream + Sync + Send + 'static,
-                                        > = Box::new(stream);
-                                        (b, self)
-                                    })
-                            }),
-                    )
+                    let domain = self.url.domain().unwrap_or("").to_owned();
+                    Either::A(ssl::wrap(domain, stream).map(move |stream| {
+                        let b: Box<
+                            AsyncNetworkStream + Sync + Send + 'static,
+                        > = Box::new(stream);
+                        (b, self)
+                    }))
                 } else {
                     let b: Box<AsyncNetworkStream + Sync + Send + 'static> = Box::new(stream);
                     Either::B(future::ok((b, self)))

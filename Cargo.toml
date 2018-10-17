@@ -9,14 +9,24 @@ byteorder = "1"
 bytes = "0.4"
 futures = "0.1"
 httparse = "1"
-native-tls = "0.1"
+native-tls = { version = "0.1", optional = true }
+openssl = { version = "0.10", optional = true }
 rand = "0.5"
 take_mut = "0.2"
 tokio-io = "0.1"
+tokio-openssl = { version = "0.2", optional = true }
 tokio-tcp = "0.1"
-tokio-tls = "0.1"
+tokio-tls = { version = "0.1", optional = true }
 url = "1"
 
 [dev-dependencies]
 structopt = "0.2"
 tokio = "0.1"
+
+[features]
+default = ["ssl-native-tls"]
+ssl-native-tls = ["native-tls", "tokio-tls"]
+ssl-openssl = ["openssl", "tokio-openssl"]
+
+[patch.crates-io]
+openssl = { git = "https://github.com/sfackler/rust-openssl" }
