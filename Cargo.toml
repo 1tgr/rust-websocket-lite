@@ -1,5 +1,5 @@
 [package]
-name = "ws-lite"
+name = "websocket-lite"
 version = "0.1.0"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
 

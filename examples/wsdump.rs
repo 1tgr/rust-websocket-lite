@@ -2,7 +2,7 @@ extern crate bytes;
 extern crate futures;
 extern crate tokio;
 extern crate url;
-extern crate ws_lite;
+extern crate websocket_lite;
 
 #[macro_use]
 extern crate structopt;
@@ -18,7 +18,7 @@ use futures::future::{self, Either, Loop};
 use structopt::StructOpt;
 use tokio::timer::Delay;
 use url::Url;
-use ws_lite::{ClientBuilder, Message, Result};
+use websocket_lite::{ClientBuilder, Message, Result};
 
 struct Stdin(Bytes);
 
@@ -56,6 +56,7 @@ fn parse_secs(s: &str) -> Result<Duration> {
 }
 
 #[derive(Debug, StructOpt)]
+#[structopt(name = "wsdump", about = "WebSocket Simple Dump Tool")]
 struct Opt {
     /// wait time(second) after 'EOF' received.
     #[structopt(long = "eof-wait", parse(try_from_str = "parse_secs"), default_value = "0")]
@@ -63,13 +64,13 @@ struct Opt {
 
     /// websocket url. ex. ws://echo.websocket.org/
     #[structopt(parse(try_from_str = "Url::parse"))]
-    url: Url,
+    ws_url: Url,
 }
 
 fn main() -> Result<()> {
-    let Opt { eof_wait, url } = Opt::from_args();
+    let Opt { eof_wait, ws_url } = Opt::from_args();
 
-    let f = ClientBuilder::new(url)
+    let f = ClientBuilder::new(ws_url)
         .connect()
         .and_then(move |client| {
             let (sink, stream) = client.split();

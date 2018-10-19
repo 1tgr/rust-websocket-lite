@@ -1,2 +1,2 @@
-# rust-ws-lite
+# rust-websocket-lite
 A fast, low-overhead WebSocket client
