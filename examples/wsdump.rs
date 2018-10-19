@@ -8,6 +8,7 @@ extern crate ws_lite;
 extern crate structopt;
 
 use std::io::{self, Read, Write};
+use std::mem;
 use std::result;
 use std::time::{Duration, Instant};
 
@@ -19,11 +20,11 @@ use tokio::timer::Delay;
 use url::Url;
 use ws_lite::{ClientBuilder, Message, Result};
 
-struct Stdin(BytesMut);
+struct Stdin(Bytes);
 
 impl Stdin {
     pub fn new() -> Self {
-        Stdin(BytesMut::new())
+        Stdin(Bytes::new())
     }
 }
 
@@ -32,8 +33,8 @@ impl Stream for Stdin {
     type Error = io::Error;
 
     fn poll(&mut self) -> result::Result<Async<Option<Bytes>>, io::Error> {
-        let Stdin(ref mut buffer) = self;
-        buffer.reserve(4096);
+        let buffer = mem::replace(&mut self.0, Bytes::new());
+        let mut buffer = BytesMut::from(buffer);
         buffer.resize(4096, 0);
 
         let n = io::stdin().read(&mut *buffer)?;
@@ -42,7 +43,9 @@ impl Stream for Stdin {
         if n == 0 {
             Ok(Async::Ready(None))
         } else {
-            Ok(Async::Ready(Some(buffer.clone().freeze())))
+            let buffer = buffer.freeze();
+            mem::replace(&mut self.0, buffer.clone());
+            Ok(Async::Ready(Some(buffer)))
         }
     }
 }
