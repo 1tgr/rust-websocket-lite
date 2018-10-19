@@ -1,3 +1,14 @@
+#![deny(missing_docs)]
+#![deny(warnings)]
+
+//! A fast, low-overhead WebSocket client.
+//!
+//! This library is optimised for receiving a high volume of messages over a long period. A key feature is that is makes
+//! no memory allocations once the connection is set up and the initial messages have been sent and received; it reuses
+//! a single pair of buffers, which are sized for the longest message seen so far.
+//!
+//! Only asynchronous access is provided at present. `native_tls` provides the TLS functionality for `wss://...` servers.
+
 extern crate base64;
 extern crate byteorder;
 extern crate bytes;
@@ -34,10 +45,13 @@ use url::Url;
 #[allow(deprecated)]
 use tokio_io::codec::{Decoder, Encoder, Framed};
 
+/// Represents errors that can be exposed by this crate.
 pub type Error = Box<error::Error + Sync + Send + 'static>;
 
+/// Represents results returned by the non-async functions in this crate.
 pub type Result<T> = result::Result<T, Error>;
 
+/// A type that is both `AsyncRead` and `AsyncWrite`, such as a network stream.
 pub trait AsyncReadWrite: AsyncRead + AsyncWrite {}
 
 impl<S> AsyncReadWrite for S
@@ -46,6 +60,7 @@ where
 {
 }
 
+/// A text string or a block of binary data that can be sent or recevied over a WebSocket.
 #[derive(Clone, Debug)]
 pub struct Message {
     is_text: bool,
@@ -53,6 +68,10 @@ pub struct Message {
 }
 
 impl Message {
+    /// Creates a message from a `Bytes` object.
+    ///
+    /// The message can be tagged as text or binary. When the `is_text` is `true` this function validates the bytes in
+    /// `data` and returns `Err` if they do not contain valid UTF-8 text.
     pub fn new(is_text: bool, data: Bytes) -> result::Result<Self, Utf8Error> {
         if is_text {
             str::from_utf8(&data)?;
@@ -61,6 +80,7 @@ impl Message {
         Ok(Message { is_text, data })
     }
 
+    /// Creates a text message from a `&str`.
     pub fn text(data: &str) -> Self {
         Message {
             is_text: true,
@@ -68,10 +88,20 @@ impl Message {
         }
     }
 
+    /// Creates a binary message from any type that can be converted to `Bytes`, such as `&[u8]` or `Vec<u8>`.
+    pub fn binary<B: Into<Bytes>>(data: B) -> Self {
+        Message {
+            is_text: false,
+            data: data.into(),
+        }
+    }
+
+    /// Returns a reference to the data held in this message.
     pub fn data(&self) -> &Bytes {
         &self.data
     }
 
+    /// For text messages, return a reference to the text.
     pub fn as_text(&self) -> Option<&str> {
         if self.is_text {
             Some(unsafe { str::from_utf8_unchecked(&self.data) })
@@ -96,6 +126,7 @@ impl Decoder for UpgradeCodec {
                 return Ok(None);
             }
 
+            // TODO: validate the server's response!
             status.unwrap()
         };
 
@@ -219,21 +250,16 @@ impl FrameHeader {
     }
 }
 
+/// Tokio codec for WebSocket messages.
 pub struct MessageCodec {
     mask_buf: Bytes,
 }
 
 impl MessageCodec {
-    pub fn new() -> Self {
+    fn new() -> Self {
         MessageCodec {
             mask_buf: Bytes::new(),
         }
-    }
-}
-
-impl Default for MessageCodec {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -317,26 +343,34 @@ impl Encoder for MessageCodec {
     }
 }
 
+/// Exposes a `Sink` for sending WebSocket messages, and a `Stream` for receiving them.
 #[allow(deprecated)]
 pub type Client<S> = Framed<S, MessageCodec>;
 
+/// Establishes a WebSocket connection.
+///
+/// `ws://...` and `wss://...` URLs are supported.
 pub struct ClientBuilder {
     url: Url,
     key: Option<[u8; 16]>,
 }
 
 impl ClientBuilder {
+    /// Creates a `ClientBuilder` that connects to a given WebSocket URL.
     pub fn new(url: Url) -> Self {
         ClientBuilder { url, key: None }
     }
 
-    pub fn key(mut self, key: &[u8]) -> Self {
+    // Not pub - used by the tests
+    #[cfg(test)]
+    fn key(mut self, key: &[u8]) -> Self {
         let mut a = [0; 16];
         a.copy_from_slice(key);
         self.key = Some(a);
         self
     }
 
+    /// Establish a connection to the WebSocket server.
     pub fn connect(
         self,
     ) -> impl Future<Item = Client<Box<AsyncReadWrite + Sync + Send + 'static>>, Error = Error>
@@ -377,6 +411,10 @@ impl ClientBuilder {
             .and_then(|(stream, this)| this.connect_on(stream))
     }
 
+    /// Take over an already established stream and use it to send and receive WebSocket messages.
+    ///
+    /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
+    /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
     pub fn connect_on<S: AsyncRead + AsyncWrite>(
         self,
         stream: S,
@@ -407,7 +445,7 @@ impl ClientBuilder {
                 opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
 
                 #[allow(deprecated)]
-                let framed = Framed::from_parts(framed.into_parts(), MessageCodec::default());
+                let framed = Framed::from_parts(framed.into_parts(), MessageCodec::new());
 
                 Ok(framed)
             })

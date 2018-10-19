@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 extern crate bytes;
 extern crate futures;
 extern crate tokio;
