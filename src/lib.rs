@@ -51,10 +51,10 @@ pub type Error = Box<error::Error + Sync + Send + 'static>;
 /// Represents results returned by the non-async functions in this crate.
 pub type Result<T> = result::Result<T, Error>;
 
-/// A type that is both `AsyncRead` and `AsyncWrite`, such as a network stream.
-pub trait AsyncReadWrite: AsyncRead + AsyncWrite {}
+/// A type that is both `AsyncRead` and `AsyncWrite`.
+pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
 
-impl<S> AsyncReadWrite for S
+impl<S> AsyncNetworkStream for S
 where
     S: AsyncRead + AsyncWrite,
 {
@@ -357,7 +357,16 @@ pub struct ClientBuilder {
 
 impl ClientBuilder {
     /// Creates a `ClientBuilder` that connects to a given WebSocket URL.
-    pub fn new(url: Url) -> Self {
+    ///
+    /// This method returns an `Err` result if URL parsing fails.
+    pub fn new(url: &str) -> result::Result<Self, url::ParseError> {
+        Ok(Self::from_url(Url::parse(url)?))
+    }
+
+    /// Creates a `ClientBuilder` that connects to a given WebSocket URL.
+    ///
+    /// This method never fails as the URL has already been parsed.
+    pub fn from_url(url: Url) -> Self {
         ClientBuilder { url, key: None }
     }
 
@@ -371,9 +380,9 @@ impl ClientBuilder {
     }
 
     /// Establish a connection to the WebSocket server.
-    pub fn connect(
+    pub fn async_connect(
         self,
-    ) -> impl Future<Item = Client<Box<AsyncReadWrite + Sync + Send + 'static>>, Error = Error>
+    ) -> impl Future<Item = Client<Box<AsyncNetworkStream + Sync + Send + 'static>>, Error = Error>
     {
         self.url
             .to_socket_addrs()
@@ -397,25 +406,25 @@ impl ClientBuilder {
                                     .map_err(Into::into)
                                     .map(|stream| {
                                         let b: Box<
-                                            AsyncReadWrite + Sync + Send + 'static,
+                                            AsyncNetworkStream + Sync + Send + 'static,
                                         > = Box::new(stream);
                                         (b, self)
                                     })
                             }),
                     )
                 } else {
-                    let b: Box<AsyncReadWrite + Sync + Send + 'static> = Box::new(stream);
+                    let b: Box<AsyncNetworkStream + Sync + Send + 'static> = Box::new(stream);
                     Either::B(future::ok((b, self)))
                 }
             })
-            .and_then(|(stream, this)| this.connect_on(stream))
+            .and_then(|(stream, this)| this.async_connect_on(stream))
     }
 
     /// Take over an already established stream and use it to send and receive WebSocket messages.
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
-    pub fn connect_on<S: AsyncRead + AsyncWrite>(
+    pub fn async_connect_on<S: AsyncRead + AsyncWrite>(
         self,
         stream: S,
     ) -> impl Future<Item = Client<S>, Error = Error> {
@@ -462,7 +471,6 @@ mod tests {
     use base64;
     use futures::{Future, Poll};
     use tokio_io::{AsyncRead, AsyncWrite};
-    use url::Url;
 
     use super::ClientBuilder;
 
@@ -532,9 +540,9 @@ mod tests {
 
         let mut input = Cursor::new(&response[..]);
         let mut output = Cursor::new(Vec::new());
-        ClientBuilder::new(Url::parse("ws://localhost/stream:8000")?)
+        ClientBuilder::new("ws://localhost/stream:8000")?
             .key(&base64::decode(b"x3JJHMbDL1EzLkh9GBhXDw==")?)
-            .connect_on(ReadWritePair(&mut input, &mut output))
+            .async_connect_on(ReadWritePair(&mut input, &mut output))
             .wait()?;
 
         assert_eq!(request, str::from_utf8(&output.into_inner())?);

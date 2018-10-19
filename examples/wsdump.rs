@@ -72,8 +72,8 @@ struct Opt {
 fn main() -> Result<()> {
     let Opt { eof_wait, ws_url } = Opt::from_args();
 
-    let f = ClientBuilder::new(ws_url)
-        .connect()
+    let f = ClientBuilder::from_url(ws_url)
+        .async_connect()
         .and_then(move |client| {
             let (sink, stream) = client.split();
 
