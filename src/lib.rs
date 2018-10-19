@@ -5,6 +5,7 @@ extern crate futures;
 extern crate httparse;
 extern crate native_tls;
 extern crate rand;
+extern crate take_mut;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_tls;
@@ -218,7 +219,23 @@ impl FrameHeader {
     }
 }
 
-pub struct MessageCodec;
+pub struct MessageCodec {
+    mask_buf: Bytes,
+}
+
+impl MessageCodec {
+    pub fn new() -> Self {
+        MessageCodec {
+            mask_buf: Bytes::new(),
+        }
+    }
+}
+
+impl Default for MessageCodec {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Decoder for MessageCodec {
     type Item = Message;
@@ -265,10 +282,35 @@ impl Encoder for MessageCodec {
 
         header.write_to(dst);
 
-        let mut data = BytesMut::from(item.data);
-        for (b, &mask) in data.iter_mut().zip(mask.iter().cycle()) {
-            *b = *b ^ mask;
-        }
+        let mask = mask.iter().cycle();
+
+        let data = match item.data.try_mut() {
+            Ok(mut data) => {
+                for (b, &mask) in data.iter_mut().zip(mask) {
+                    *b = *b ^ mask;
+                }
+
+                data.freeze()
+            }
+
+            Err(data) => {
+                take_mut::take(&mut self.mask_buf, |mask_buf| {
+                    let mut mask_buf = mask_buf
+                        .try_mut()
+                        .unwrap_or_else(|_old_mask_buf| BytesMut::new());
+
+                    mask_buf.resize(data.len(), 0);
+
+                    for (dest, (&src, &mask)) in mask_buf.iter_mut().zip(data.iter().zip(mask)) {
+                        *dest = src ^ mask;
+                    }
+
+                    mask_buf.freeze()
+                });
+
+                self.mask_buf.clone()
+            }
+        };
 
         dst.put(data);
         Ok(())
@@ -365,7 +407,7 @@ impl ClientBuilder {
                 opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
 
                 #[allow(deprecated)]
-                let framed = Framed::from_parts(framed.into_parts(), MessageCodec);
+                let framed = Framed::from_parts(framed.into_parts(), MessageCodec::default());
 
                 Ok(framed)
             })
