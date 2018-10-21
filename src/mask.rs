@@ -4,7 +4,7 @@ use bytes::{Bytes, BytesMut};
 use rand;
 use take_mut;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Mask(u32);
 
 impl Mask {

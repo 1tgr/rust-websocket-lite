@@ -22,6 +22,7 @@ tokio-tls = { version = "0.1", optional = true }
 url = "1"
 
 [dev-dependencies]
+quickcheck = "0.7"
 structopt = "0.2"
 tokio = "0.1"
 

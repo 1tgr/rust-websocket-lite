@@ -22,6 +22,10 @@ extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate url;
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 #[cfg(feature = "ssl-native-tls")]
 extern crate native_tls;
 

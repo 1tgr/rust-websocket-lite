@@ -8,6 +8,7 @@ use bytes::{BufMut, BytesMut};
 use super::Result;
 use super::mask::Mask;
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct FrameHeader {
     pub fin: bool,
     pub opcode: u8,
@@ -71,29 +72,37 @@ impl FrameHeader {
         };
 
         let data_start = c.position() as usize;
-        let data_end = data_start + len;
-        if data.len() < data_end {
-            return Ok(None);
+
+        Ok(Some((
+            FrameHeader { fin, opcode, mask, len },
+            data_start..data_start + len,
+        )))
+    }
+
+    fn frame_len(&self) -> usize {
+        let mut len = 1 /* fin|opcode */ + 1 /* mask|len1 */;
+        if self.len > 65535 {
+            len += 8;
+        } else if self.len > 125 {
+            len += 2;
         }
 
-        let header = FrameHeader { fin, opcode, mask, len };
+        if self.mask.is_some() {
+            len += 4;
+        }
 
-        Ok(Some((header, data_start..data_end)))
+        len + self.len
     }
 
     pub fn write_to(&self, dst: &mut BytesMut) {
-        if !self.fin {
-            assert_eq!(0, self.opcode);
-        }
-
-        dst.reserve(10 + self.len as usize);
+        dst.reserve(self.frame_len());
         dst.put_u8((if self.fin { 0x80 } else { 0x00 }) | self.opcode);
 
         let mask_bit = if self.mask.is_some() { 0x80 } else { 0x00 };
         if self.len > 65535 {
             dst.put_u8(mask_bit | 127);
             dst.put_u64_be(self.len as u64);
-        } else if self.len >= 126 {
+        } else if self.len > 125 {
             dst.put_u8(mask_bit | 126);
             dst.put_u16_be(self.len as u16);
         } else {
@@ -101,10 +110,41 @@ impl FrameHeader {
         }
 
         if let Some(mask) = self.mask {
-            dst.reserve(4);
-
             #[allow(deprecated)]
             dst.put_u32::<NativeEndian>(mask.into());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::BytesMut;
+
+    use super::FrameHeader;
+
+    fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) {
+        let header = FrameHeader {
+            fin,
+            opcode: if is_text { 1 } else { 2 },
+            mask: mask.map(|n| n.into()),
+            len,
+        };
+
+        let mut bytes = BytesMut::new();
+        header.write_to(&mut bytes);
+
+        let bytes = bytes.freeze();
+        assert_eq!(header.frame_len(), bytes.len() + header.len);
+
+        let (header2, data_range) = FrameHeader::validate(&bytes).unwrap().unwrap();
+        assert_eq!(data_range.start, bytes.len());
+        assert_eq!(header, header2)
+    }
+
+    quickcheck! {
+        fn qc_round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) -> bool {
+            round_trips(fin, is_text, mask, len);
+            true
         }
     }
 }

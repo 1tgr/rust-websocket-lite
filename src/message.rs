@@ -9,7 +9,7 @@ use super::frame::FrameHeader;
 use super::mask::{Mask, Masker};
 
 /// A text string or a block of binary data that can be sent or recevied over a WebSocket.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Message {
     is_text: bool,
     data: Bytes,
@@ -81,6 +81,10 @@ impl Decoder for MessageCodec {
             return Ok(None);
         };
 
+        if data_range.end > src.len() {
+            return Ok(None);
+        }
+
         assert!(header.fin);
 
         let is_text = if header.opcode == 1 {
@@ -93,6 +97,14 @@ impl Decoder for MessageCodec {
         let data = src.split_to(data_range.end)
             .freeze()
             .slice(data_range.start, data_range.end);
+
+        let data = if let Some(mask) = header.mask {
+            // Note: clients never need decode masked messages because masking is only used for client -> server frames.
+            // However this code is used to test round tripping of masked messages.
+            self.masker.mask(data, mask)
+        } else {
+            data
+        };
 
         Ok(Some(Message::new(is_text, data)?))
     }
@@ -115,5 +127,72 @@ impl Encoder for MessageCodec {
         header.write_to(dst);
         dst.put(self.masker.mask(item.data, mask));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::{BufMut, BytesMut};
+    use tokio_codec::{Decoder, Encoder};
+
+    use super::{Message, MessageCodec};
+    use frame::FrameHeader;
+    use mask::Masker;
+
+    fn round_trips(is_text: bool, data: String) {
+        let message = if is_text {
+            Message::text(&data)
+        } else {
+            Message::binary(data.as_bytes())
+        };
+
+        let mut bytes = BytesMut::new();
+        MessageCodec::new().encode(message.clone(), &mut bytes).unwrap();
+
+        let mut bytes = BytesMut::from(&bytes[..]);
+        let message2 = MessageCodec::new().decode(&mut bytes).unwrap().unwrap();
+        assert_eq!(0, bytes.len());
+        assert_eq!(message, message2);
+    }
+
+    fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
+        let header = FrameHeader {
+            fin: true, // TODO decode messages split across frames
+            opcode: if is_text { 1 } else { 2 },
+            mask: mask.map(|n| n.into()),
+            len: data.len(),
+        };
+
+        let mut bytes = BytesMut::new();
+        header.write_to(&mut bytes);
+
+        {
+            let data = data.as_bytes().into();
+            let data = if let Some(mask) = header.mask {
+                Masker::new().mask(data, mask)
+            } else {
+                data
+            };
+
+            bytes.put(data);
+        }
+
+        let mut bytes = BytesMut::from(&bytes[..]);
+        let message2 = MessageCodec::new().decode(&mut bytes).unwrap().unwrap();
+        assert_eq!(0, bytes.len());
+        assert_eq!(is_text, message2.as_text().is_some());
+        assert_eq!(data.as_bytes(), message2.data());
+    }
+
+    quickcheck! {
+        fn qc_round_trips(is_text: bool, data: String) -> bool {
+            round_trips(is_text, data);
+            true
+        }
+
+        fn qc_round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) -> bool {
+            round_trips_via_frame_header(is_text, mask, data);
+            true
+        }
     }
 }
