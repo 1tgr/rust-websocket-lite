@@ -1,16 +1,17 @@
-use std::io::{self, Cursor, Read};
+use std::io::{self, Cursor};
 use std::ops::Range;
 use std::result;
 
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
 use bytes::{BufMut, BytesMut};
 
 use super::Result;
+use super::mask::Mask;
 
 pub struct FrameHeader {
     pub fin: bool,
     pub opcode: u8,
-    pub mask: Option<[u8; 4]>,
+    pub mask: Option<Mask>,
     pub len: usize,
 }
 
@@ -63,9 +64,7 @@ impl FrameHeader {
             let mask = if b & 0x80 == 0 {
                 None
             } else {
-                let mut mask = [0; 4];
-                try_eof!(c.read_exact(&mut mask));
-                Some(mask)
+                Some(try_eof!(c.read_u32::<NativeEndian>()).into())
             };
 
             (mask, len)
@@ -101,9 +100,11 @@ impl FrameHeader {
             dst.put_u8(mask_bit | self.len as u8);
         }
 
-        if let Some(mask) = &self.mask {
+        if let Some(mask) = self.mask {
             dst.reserve(4);
-            dst.put_slice(mask);
+
+            #[allow(deprecated)]
+            dst.put_u32::<NativeEndian>(mask.into());
         }
     }
 }

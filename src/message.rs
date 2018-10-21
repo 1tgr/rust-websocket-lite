@@ -1,13 +1,11 @@
-use std::mem;
 use std::result;
 use std::str::{self, Utf8Error};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use rand;
 
 use super::{Error, Result};
 use super::frame::FrameHeader;
-use super::mask::Masker;
+use super::mask::{Mask, Masker};
 
 #[allow(deprecated)]
 use tokio_io::codec::{Decoder, Encoder};
@@ -107,8 +105,7 @@ impl Encoder for MessageCodec {
     type Error = Error;
 
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<()> {
-        let mask: u32 = rand::random();
-        let mask: [u8; 4] = unsafe { mem::transmute(mask) };
+        let mask = Mask::new();
 
         let header = FrameHeader {
             fin: true,
@@ -118,10 +115,7 @@ impl Encoder for MessageCodec {
         };
 
         header.write_to(dst);
-
-        let mask = mask.iter().cycle();
-        let data = self.masker.mask(item.data, mask);
-        dst.put(data);
+        dst.put(self.masker.mask(item.data, mask));
         Ok(())
     }
 }
