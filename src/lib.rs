@@ -15,6 +15,7 @@ extern crate bytes;
 extern crate futures;
 extern crate httparse;
 extern crate rand;
+extern crate sha1;
 extern crate take_mut;
 extern crate tokio_io;
 extern crate tokio_tcp;
@@ -48,7 +49,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use byteorder::{BigEndian, ReadBytesExt};
 use futures::{Future, Stream};
 use futures::future::{self, Either, IntoFuture};
-use httparse::Response;
+use httparse::{Header, Response};
+use sha1::Sha1;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 use url::Url;
@@ -73,10 +75,7 @@ mod ssl {
             .and_then(|builder| builder.build())
             .map_err(Into::into)
             .into_future()
-            .and_then(move |cx| {
-                cx.connect_async(&domain, stream)
-                    .map_err(Into::into)
-            })
+            .and_then(move |cx| cx.connect_async(&domain, stream).map_err(Into::into))
     }
 }
 
@@ -186,27 +185,59 @@ impl Message {
     }
 }
 
-struct UpgradeCodec;
+fn header<'a, 'header: 'a>(
+    headers: &'a [Header<'header>],
+    name: &'a str,
+) -> result::Result<&'header [u8], String> {
+    let header = headers
+        .iter()
+        .find(|header| header.name == name)
+        .ok_or_else(|| format!("server didn't respond with {name} header", name = name))?;
+
+    Ok(header.value)
+}
+
+fn validate(expected_ws_accept: &[u8; sha1::DIGEST_LENGTH], data: &[u8]) -> Result<Option<usize>> {
+    let mut headers = [httparse::EMPTY_HEADER; 20];
+    let mut response = Response::new(&mut headers);
+    let status = response.parse(data)?;
+    if !status.is_complete() {
+        return Ok(None);
+    }
+
+    let response_len = status.unwrap();
+    let code = response.code.unwrap();
+    if code != 101 {
+        return Err(format!("server responded with HTTP error {code}", code = code).into());
+    }
+
+    let ws_accept_header = header(response.headers, "Sec-WebSocket-Accept")?;
+    let mut ws_accept = [0; sha1::DIGEST_LENGTH];
+    base64::decode_config_slice(&ws_accept_header, base64::STANDARD, &mut ws_accept)?;
+    if expected_ws_accept != &ws_accept {
+        return Err(format!("server responded with incorrect Sec-WebSocket-Accept header: expected {expected}, got {actual}",
+                           expected=Base64Display::standard(expected_ws_accept),
+                           actual=Base64Display::standard(&ws_accept)).into());
+    }
+
+    Ok(Some(response_len))
+}
+
+struct UpgradeCodec {
+    ws_accept: [u8; sha1::DIGEST_LENGTH],
+}
 
 impl Decoder for UpgradeCodec {
     type Item = ();
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<()>> {
-        let response_len = {
-            let mut headers = [httparse::EMPTY_HEADER; 20];
-            let mut response = Response::new(&mut headers);
-            let status = response.parse(&src)?;
-            if !status.is_complete() {
-                return Ok(None);
-            }
-
-            // TODO: validate the server's response!
-            status.unwrap()
-        };
-
-        src.advance(response_len);
-        Ok(Some(()))
+        if let Some(response_len) = validate(&self.ws_accept, &src)? {
+            src.advance(response_len);
+            Ok(Some(()))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -494,7 +525,22 @@ impl ClientBuilder {
         self,
         stream: S,
     ) -> impl Future<Item = Client<S>, Error = Error> {
-        let key = self.key.unwrap_or_else(|| rand::random());
+        let key_bytes = self.key.unwrap_or_else(|| rand::random());
+        let mut key_base64 = [0; 24];
+        assert_eq!(
+            24,
+            base64::encode_config_slice(&key_bytes, base64::STANDARD, &mut key_base64)
+        );
+
+        let key = str::from_utf8(&key_base64).unwrap();
+
+        let ws_accept = {
+            let mut s = Sha1::new();
+            s.update(key.as_bytes());
+            s.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+            s.digest().bytes()
+        };
+
         tokio_io::io::write_all(
             stream,
             format!(
@@ -507,12 +553,12 @@ impl ClientBuilder {
                  \r\n",
                 path = self.url.path(),
                 host = self.url.domain().unwrap_or(""),
-                key = Base64Display::standard(&key)
+                key = key,
             ),
         ).map_err(Into::into)
             .and_then(move |(stream, _request)| {
                 #[allow(deprecated)]
-                let framed = stream.framed(UpgradeCodec);
+                let framed = stream.framed(UpgradeCodec { ws_accept });
 
                 framed.into_future().map_err(|(e, _framed)| e)
             })
@@ -594,7 +640,7 @@ mod tests {
                        Host: localhost\r\n\
                        Upgrade: websocket\r\n\
                        Connection: Upgrade\r\n\
-                       Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n\
+                       Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
                        Sec-WebSocket-Version: 13\r\n\
                        \r\n";
 
@@ -607,7 +653,7 @@ mod tests {
         let mut input = Cursor::new(&response[..]);
         let mut output = Cursor::new(Vec::new());
         ClientBuilder::new("ws://localhost/stream:8000")?
-            .key(&base64::decode(b"x3JJHMbDL1EzLkh9GBhXDw==")?)
+            .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
             .async_connect_on(ReadWritePair(&mut input, &mut output))
             .wait()?;
 

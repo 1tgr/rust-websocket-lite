@@ -12,6 +12,7 @@ httparse = "1"
 native-tls = { version = "0.1", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.5"
+sha1 = "0.6"
 take_mut = "0.2"
 tokio-io = "0.1"
 tokio-openssl = { version = "0.2", optional = true }
