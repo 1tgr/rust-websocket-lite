@@ -419,7 +419,7 @@ impl Encoder for MessageCodec {
         let data = match item.data.try_mut() {
             Ok(mut data) => {
                 for (b, &mask) in data.iter_mut().zip(mask) {
-                    *b = *b ^ mask;
+                    *b ^= mask;
                 }
 
                 data.freeze()
@@ -525,7 +525,7 @@ impl ClientBuilder {
         self,
         stream: S,
     ) -> impl Future<Item = Client<S>, Error = Error> {
-        let key_bytes = self.key.unwrap_or_else(|| rand::random());
+        let key_bytes = self.key.unwrap_or_else(rand::random);
         let mut key_base64 = [0; 24];
         assert_eq!(
             24,
