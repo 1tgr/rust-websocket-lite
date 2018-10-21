@@ -17,6 +17,7 @@ extern crate httparse;
 extern crate rand;
 extern crate sha1;
 extern crate take_mut;
+extern crate tokio_codec;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate url;

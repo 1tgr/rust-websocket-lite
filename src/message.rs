@@ -2,13 +2,11 @@ use std::result;
 use std::str::{self, Utf8Error};
 
 use bytes::{BufMut, Bytes, BytesMut};
+use tokio_codec::{Decoder, Encoder};
 
 use super::{Error, Result};
 use super::frame::FrameHeader;
 use super::mask::{Mask, Masker};
-
-#[allow(deprecated)]
-use tokio_io::codec::{Decoder, Encoder};
 
 /// A text string or a block of binary data that can be sent or recevied over a WebSocket.
 #[derive(Clone, Debug)]

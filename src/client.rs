@@ -6,6 +6,7 @@ use base64;
 use futures::{Future, Stream};
 use futures::future::{self, Either, IntoFuture};
 use rand;
+use tokio_codec::{Decoder, Encoder, Framed};
 use tokio_io::{self, AsyncRead, AsyncWrite};
 use tokio_tcp::TcpStream;
 use url::{self, Url};
@@ -13,9 +14,6 @@ use url::{self, Url};
 use super::{Error, MessageCodec};
 use super::ssl;
 use super::upgrade::UpgradeCodec;
-
-#[allow(deprecated)]
-use tokio_io::codec::Framed;
 
 /// A type that is both `AsyncRead` and `AsyncWrite`.
 pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
@@ -27,8 +25,16 @@ where
 }
 
 /// Exposes a `Sink` for sending WebSocket messages, and a `Stream` for receiving them.
-#[allow(deprecated)]
 pub type Client<S> = Framed<S, MessageCodec>;
+
+fn set_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2> {
+    // TODO improve this? https://github.com/tokio-rs/tokio/issues/717
+    let parts1 = framed.into_parts();
+    let mut parts2 = Framed::new(parts1.io, codec).into_parts();
+    parts2.read_buf = parts1.read_buf;
+    parts2.write_buf = parts1.write_buf;
+    Framed::from_parts(parts2)
+}
 
 /// Establishes a WebSocket connection.
 ///
@@ -120,19 +126,10 @@ impl ClientBuilder {
                 key = key,
             ),
         ).map_err(Into::into)
-            .and_then(move |(stream, _request)| {
-                #[allow(deprecated)]
-                let framed = stream.framed(upgrade_codec);
-
-                framed.into_future().map_err(|(e, _framed)| e)
-            })
+            .and_then(move |(stream, _request)| upgrade_codec.framed(stream).into_future().map_err(|(e, _framed)| e))
             .and_then(move |(opt, framed)| {
                 opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
-
-                #[allow(deprecated)]
-                let framed = Framed::from_parts(framed.into_parts(), MessageCodec::new());
-
-                Ok(framed)
+                Ok(set_codec(framed, MessageCodec::new()))
             })
     }
 }

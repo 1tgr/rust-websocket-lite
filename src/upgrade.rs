@@ -6,11 +6,9 @@ use base64::display::Base64Display;
 use bytes::BytesMut;
 use httparse::{self, Header, Response};
 use sha1::{self, Sha1};
+use tokio_codec::{Decoder, Encoder};
 
 use super::{Error, Result};
-
-#[allow(deprecated)]
-use tokio_io::codec::{Decoder, Encoder};
 
 fn header<'a, 'header: 'a>(headers: &'a [Header<'header>], name: &'a str) -> result::Result<&'header [u8], String> {
     let header = headers
