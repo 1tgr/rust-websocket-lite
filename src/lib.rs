@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
+#![cfg_attr(feature = "nightly", feature(slice_align_to))]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 //! A fast, low-overhead WebSocket client.
