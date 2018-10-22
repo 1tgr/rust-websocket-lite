@@ -6,7 +6,7 @@ extern crate tokio;
 extern crate url;
 extern crate websocket_lite;
 
-#[macro_use]
+#[cfg_attr(not(feature = "nightly"), macro_use)]
 extern crate structopt;
 
 use std::io::{self, Read, Write};

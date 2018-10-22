@@ -28,6 +28,7 @@ tokio = "0.1"
 
 [features]
 default = ["ssl-native-tls"]
+nightly = []
 ssl-native-tls = ["native-tls", "tokio-tls"]
 ssl-openssl = ["openssl", "tokio-openssl"]
 

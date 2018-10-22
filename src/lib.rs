@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
+#![cfg_attr(feature = "nightly", feature(test))]
 
 //! A fast, low-overhead WebSocket client.
 //!
@@ -25,6 +26,9 @@ extern crate url;
 #[cfg(test)]
 #[macro_use]
 extern crate quickcheck;
+
+#[cfg(all(feature = "nightly", test))]
+extern crate test;
 
 #[cfg(feature = "ssl-native-tls")]
 extern crate native_tls;
