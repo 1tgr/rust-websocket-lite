@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::net::ToSocketAddrs;
 use std::result;
 use std::str;
@@ -36,6 +37,42 @@ fn set_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(framed: Frame
     Framed::from_parts(parts2)
 }
 
+macro_rules! writeok {
+    ($dst:expr, $($arg:tt)*) => {
+        let _ = $dst.write_fmt(format_args!($($arg)*));
+    }
+}
+
+fn build_request(url: Url, key: &str) -> String {
+    let mut s = String::new();
+    writeok!(s, "GET {path}", path = url.path());
+    if let Some(query) = url.query() {
+        writeok!(s, "?{query}", query = query);
+    }
+
+    s += " HTTP/1.1\r\n";
+
+    if let Some(host) = url.host() {
+        writeok!(s, "Host: {host}", host = host);
+        if let Some(port) = url.port_or_known_default() {
+            writeok!(s, ":{port}", port = port);
+        }
+
+        s += "\r\n";
+    }
+
+    writeok!(
+        s,
+        "Upgrade: websocket\r\n\
+         Connection: Upgrade\r\n\
+         Sec-WebSocket-Key: {key}\r\n\
+         Sec-WebSocket-Version: 13\r\n\
+         \r\n",
+        key = key
+    );
+    s
+}
+
 /// Establishes a WebSocket connection.
 ///
 /// `ws://...` and `wss://...` URLs are supported.
@@ -66,6 +103,17 @@ impl ClientBuilder {
         a.copy_from_slice(key);
         self.key = Some(a);
         self
+    }
+
+    /// Establish a connection to the WebSocket server.
+    pub fn async_connect_insecure(self) -> impl Future<Item = Client<TcpStream>, Error = Error> {
+        self.url
+            .to_socket_addrs()
+            .map_err(Into::into)
+            .and_then(|mut addrs| addrs.next().ok_or_else(|| "can't resolve host".to_owned().into()))
+            .into_future()
+            .and_then(|addr| TcpStream::connect(&addr).map_err(Into::into))
+            .and_then(|stream| self.async_connect_on(stream))
     }
 
     /// Establish a connection to the WebSocket server.
@@ -110,22 +158,8 @@ impl ClientBuilder {
 
         let key = str::from_utf8(&key_base64).unwrap();
         let upgrade_codec = UpgradeCodec::new(key);
-
-        tokio_io::io::write_all(
-            stream,
-            format!(
-                "GET {path} HTTP/1.1\r\n\
-                 Host: {host}\r\n\
-                 Upgrade: websocket\r\n\
-                 Connection: Upgrade\r\n\
-                 Sec-WebSocket-Key: {key}\r\n\
-                 Sec-WebSocket-Version: 13\r\n\
-                 \r\n",
-                path = self.url.path(),
-                host = self.url.domain().unwrap_or(""),
-                key = key,
-            ),
-        ).map_err(Into::into)
+        tokio_io::io::write_all(stream, build_request(self.url, key))
+            .map_err(Into::into)
             .and_then(move |(stream, _request)| upgrade_codec.framed(stream).into_future().map_err(|(e, _framed)| e))
             .and_then(move |(opt, framed)| {
                 opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
@@ -197,8 +231,8 @@ mod tests {
 
     #[test]
     fn can_connect_on() -> Result<()> {
-        let request = "GET /stream:8000 HTTP/1.1\r\n\
-                       Host: localhost\r\n\
+        let request = "GET /stream?query HTTP/1.1\r\n\
+                       Host: localhost:8000\r\n\
                        Upgrade: websocket\r\n\
                        Connection: Upgrade\r\n\
                        Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
@@ -213,7 +247,7 @@ mod tests {
 
         let mut input = Cursor::new(&response[..]);
         let mut output = Cursor::new(Vec::new());
-        ClientBuilder::new("ws://localhost/stream:8000")?
+        ClientBuilder::new("ws://localhost:8000/stream?query")?
             .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
             .async_connect_on(ReadWritePair(&mut input, &mut output))
             .wait()?;

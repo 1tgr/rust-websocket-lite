@@ -5,13 +5,13 @@ use std::result;
 use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
 use bytes::{BufMut, BytesMut};
 
-use super::Result;
+use super::{Opcode, Result};
 use super::mask::Mask;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrameHeader {
     pub fin: bool,
-    pub opcode: u8,
+    pub opcode: Opcode,
     pub mask: Option<Mask>,
     pub len: usize,
 }
@@ -47,7 +47,9 @@ impl FrameHeader {
                 }
             };
 
-            (fin, b & 0x0f)
+            let opcode = b & 0x0f;
+            let opcode = Opcode::try_from(opcode).ok_or_else(|| format!("opcode {} is not supported", opcode))?;
+            (fin, opcode)
         };
 
         let (mask, len) = {
@@ -70,6 +72,18 @@ impl FrameHeader {
 
             (mask, len)
         };
+
+        match opcode {
+            Opcode::Text | Opcode::Binary => (),
+            _ => {
+                if len >= 126 {
+                    return Err(format!(
+                        "control frames must be shorter than 126 bytes ({} bytes is too long)",
+                        len
+                    ).into());
+                }
+            }
+        }
 
         let data_start = c.position() as usize;
 
@@ -96,7 +110,7 @@ impl FrameHeader {
 
     pub fn write_to(&self, dst: &mut BytesMut) {
         dst.reserve(self.frame_len());
-        dst.put_u8((if self.fin { 0x80 } else { 0x00 }) | self.opcode);
+        dst.put_u8((if self.fin { 0x80 } else { 0x00 }) | u8::from(self.opcode));
 
         let mask_bit = if self.mask.is_some() { 0x80 } else { 0x00 };
         if self.len > 65535 {
@@ -121,11 +135,12 @@ mod tests {
     use bytes::BytesMut;
 
     use super::FrameHeader;
+    use opcode::Opcode;
 
     fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) {
         let header = FrameHeader {
             fin,
-            opcode: if is_text { 1 } else { 2 },
+            opcode: if is_text { Opcode::Text } else { Opcode::Binary },
             mask: mask.map(|n| n.into()),
             len,
         };

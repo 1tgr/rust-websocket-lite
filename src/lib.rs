@@ -56,8 +56,10 @@ mod client;
 mod frame;
 mod mask;
 mod message;
+mod opcode;
 mod ssl;
 mod upgrade;
 
 pub use client::{AsyncNetworkStream, Client, ClientBuilder};
 pub use message::{Message, MessageCodec};
+pub use opcode::Opcode;

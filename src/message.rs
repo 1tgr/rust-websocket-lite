@@ -4,14 +4,14 @@ use std::str::{self, Utf8Error};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::{Error, Result};
+use super::{Error, Opcode, Result};
 use super::frame::FrameHeader;
 use super::mask::{Mask, Masker};
 
 /// A text string or a block of binary data that can be sent or recevied over a WebSocket.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Message {
-    is_text: bool,
+    opcode: Opcode,
     data: Bytes,
 }
 
@@ -20,18 +20,20 @@ impl Message {
     ///
     /// The message can be tagged as text or binary. When the `is_text` is `true` this function validates the bytes in
     /// `data` and returns `Err` if they do not contain valid UTF-8 text.
-    pub fn new(is_text: bool, data: Bytes) -> result::Result<Self, Utf8Error> {
-        if is_text {
+    pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
+        let data = data.into();
+
+        if let Opcode::Text = opcode {
             str::from_utf8(&data)?;
         }
 
-        Ok(Message { is_text, data })
+        Ok(Message { opcode, data })
     }
 
     /// Creates a text message from a `&str`.
     pub fn text(data: &str) -> Self {
         Message {
-            is_text: true,
+            opcode: Opcode::Text,
             data: data.into(),
         }
     }
@@ -39,9 +41,48 @@ impl Message {
     /// Creates a binary message from any type that can be converted to `Bytes`, such as `&[u8]` or `Vec<u8>`.
     pub fn binary<B: Into<Bytes>>(data: B) -> Self {
         Message {
-            is_text: false,
+            opcode: Opcode::Binary,
             data: data.into(),
         }
+    }
+
+    /// Creates a message that indicates the connection is about to be closed.
+    pub fn close(reason: Option<(u16, &str)>) -> Self {
+        let data = if let Some((code, reason)) = reason {
+            let mut buf = BytesMut::new();
+            buf.reserve(2 + reason.len());
+            buf.put_u16_be(code);
+            buf.put(reason);
+            buf.freeze()
+        } else {
+            Bytes::new()
+        };
+
+        Message {
+            opcode: Opcode::Close,
+            data,
+        }
+    }
+
+    /// Creates a message requesting a pong response.
+    pub fn ping<B: Into<Bytes>>(data: B) -> Self {
+        Message {
+            opcode: Opcode::Ping,
+            data: data.into(),
+        }
+    }
+
+    /// Creates a response to a ping message.
+    pub fn pong<B: Into<Bytes>>(data: B) -> Self {
+        Message {
+            opcode: Opcode::Pong,
+            data: data.into(),
+        }
+    }
+
+    /// Returns this message's WebSocket opcode.
+    pub fn opcode(&self) -> Opcode {
+        self.opcode
     }
 
     /// Returns a reference to the data held in this message.
@@ -49,9 +90,14 @@ impl Message {
         &self.data
     }
 
+    /// Consumes the message, returning its data.
+    pub fn into_data(self) -> Bytes {
+        self.data
+    }
+
     /// For text messages, return a reference to the text.
     pub fn as_text(&self) -> Option<&str> {
-        if self.is_text {
+        if let Opcode::Text = self.opcode {
             Some(unsafe { str::from_utf8_unchecked(&self.data) })
         } else {
             None
@@ -85,14 +131,10 @@ impl Decoder for MessageCodec {
             return Ok(None);
         }
 
-        assert!(header.fin);
-
-        let is_text = if header.opcode == 1 {
-            true
-        } else {
-            assert_eq!(header.opcode, 2);
-            false
-        };
+        if !header.fin {
+            // TODO
+            return Err("messages split across multiple frames are not yet supported".into());
+        }
 
         let data = src.split_to(data_range.end)
             .freeze()
@@ -106,7 +148,7 @@ impl Decoder for MessageCodec {
             data
         };
 
-        Ok(Some(Message::new(is_text, data)?))
+        Ok(Some(Message::new(header.opcode, data)?))
     }
 }
 
@@ -119,7 +161,7 @@ impl Encoder for MessageCodec {
 
         let header = FrameHeader {
             fin: true,
-            opcode: if item.is_text { 1 } else { 2 },
+            opcode: item.opcode,
             mask: Some(mask),
             len: item.data.len(),
         };
@@ -138,12 +180,13 @@ mod tests {
     use super::{Message, MessageCodec};
     use frame::FrameHeader;
     use mask::Masker;
+    use opcode::Opcode;
 
     fn round_trips(is_text: bool, data: String) {
         let message = if is_text {
             Message::text(&data)
         } else {
-            Message::binary(data.as_bytes())
+            Message::new(Opcode::Binary, data).unwrap()
         };
 
         let mut bytes = BytesMut::new();
@@ -158,7 +201,7 @@ mod tests {
     fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
         let header = FrameHeader {
             fin: true, // TODO decode messages split across frames
-            opcode: if is_text { 1 } else { 2 },
+            opcode: if is_text { Opcode::Text } else { Opcode::Binary },
             mask: mask.map(|n| n.into()),
             len: data.len(),
         };

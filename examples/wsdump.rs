@@ -20,7 +20,7 @@ use futures::future::{self, Either, Loop};
 use structopt::StructOpt;
 use tokio::timer::Delay;
 use url::Url;
-use websocket_lite::{ClientBuilder, Message, Result};
+use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 
 struct Stdin(Bytes);
 
@@ -84,7 +84,7 @@ fn main() -> Result<()> {
                     .and_then(move |(data, stream)| {
                         if let Some(data) = data {
                             Either::A(
-                                Message::new(true, data)
+                                Message::new(Opcode::Text, data)
                                     .map_err(Into::into)
                                     .into_future()
                                     .and_then(|message| sink.send(message))
