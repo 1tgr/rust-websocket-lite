@@ -721,14 +721,14 @@
          "reportfile": "rust_websocket_lite_case_6_2_2.json"
       },
       "6.2.3": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_2_3.json"
       },
       "6.2.4": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_2_4.json"
       },
@@ -1087,7 +1087,7 @@
          "reportfile": "rust_websocket_lite_case_6_4_1.json"
       },
       "6.4.2": {
-         "behavior": "FAILED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_4_2.json"

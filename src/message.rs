@@ -118,15 +118,9 @@ impl MessageCodec {
     }
 }
 
-fn validate_fragment(opcode: Opcode, data: &[u8]) -> Result<()> {
+fn validate_fragment(opcode: Opcode) -> Result<()> {
     match opcode {
-        Opcode::Text => {
-            str::from_utf8(data)?;
-            Ok(())
-        }
-
-        Opcode::Binary => Ok(()),
-
+        Opcode::Text | Opcode::Binary => Ok(()),
         _ => Err("control frames must not be fragmented".into()),
     }
 }
@@ -166,19 +160,15 @@ impl Decoder for MessageCodec {
                 }
 
                 (Some((opcode, mut partial_data)), true, None) => {
-                    validate_fragment(opcode, &data)?;
+                    validate_fragment(opcode)?;
                     partial_data.extend_from_slice(&data);
 
-                    let message = Message {
-                        opcode,
-                        data: partial_data.freeze(),
-                    };
-
+                    let message = Message::new(opcode, partial_data)?;
                     return Ok(Some(message));
                 }
 
                 (Some((opcode, mut partial_data)), false, None) => {
-                    validate_fragment(opcode, &data)?;
+                    validate_fragment(opcode)?;
                     partial_data.extend_from_slice(&data);
                     Some((opcode, partial_data))
                 }
@@ -193,7 +183,7 @@ impl Decoder for MessageCodec {
                 }
 
                 (None, false, Some(opcode)) => {
-                    validate_fragment(opcode, &data)?;
+                    validate_fragment(opcode)?;
                     Some((opcode, data.into()))
                 }
 
