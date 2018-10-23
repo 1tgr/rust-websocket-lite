@@ -76,15 +76,12 @@ impl FrameHeader {
             (mask, len)
         };
 
-        match opcode {
-            Some(Opcode::Text) | Some(Opcode::Binary) => (),
-            _ => {
-                if len >= 126 {
-                    return Err(format!(
-                        "control frames must be shorter than 126 bytes ({} bytes is too long)",
-                        len
-                    ).into());
-                }
+        if let Some(opcode) = opcode {
+            if opcode.is_control() && len >= 126 {
+                return Err(format!(
+                    "control frames must be shorter than 126 bytes ({} bytes is too long)",
+                    len
+                ).into());
             }
         }
 

@@ -14,6 +14,22 @@ pub enum Opcode {
 }
 
 impl Opcode {
+    /// Returns `true` if `self` is `Text`.
+    pub fn is_text(self) -> bool {
+        match self {
+            Opcode::Text => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if `self` is `Close`, `Ping` or `Pong`.
+    pub fn is_control(self) -> bool {
+        match self {
+            Opcode::Text | Opcode::Binary => false,
+            _ => true,
+        }
+    }
+
     /// Converts `u8` to `Opcode`.
     ///
     /// Returns `None` for unrecognised and unsupported opcodes.

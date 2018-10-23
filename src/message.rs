@@ -1,3 +1,4 @@
+use std::mem;
 use std::result;
 use std::str::{self, Utf8Error};
 
@@ -23,7 +24,7 @@ impl Message {
     pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
         let data = data.into();
 
-        if let Opcode::Text = opcode {
+        if opcode.is_text() {
             str::from_utf8(&data)?;
         }
 
@@ -97,7 +98,7 @@ impl Message {
 
     /// For text messages, return a reference to the text.
     pub fn as_text(&self) -> Option<&str> {
-        if let Opcode::Text = self.opcode {
+        if self.opcode.is_text() {
             Some(unsafe { str::from_utf8_unchecked(&self.data) })
         } else {
             None
@@ -108,20 +109,23 @@ impl Message {
 /// Tokio codec for WebSocket messages.
 pub struct MessageCodec {
     masker: Masker,
+    interrupted_message: Option<(Opcode, BytesMut)>,
 }
 
 impl MessageCodec {
     pub(crate) fn new() -> Self {
         MessageCodec {
             masker: Masker::new(),
+            interrupted_message: None,
         }
     }
 }
 
-fn validate_fragment(opcode: Opcode) -> Result<()> {
-    match opcode {
-        Opcode::Text | Opcode::Binary => Ok(()),
-        _ => Err("control frames must not be fragmented".into()),
+fn validate_fragment(opcode: Opcode) -> result::Result<(), &'static str> {
+    if opcode.is_control() {
+        Err("control frames must not be fragmented")
+    } else {
+        Ok(())
     }
 }
 
@@ -130,15 +134,17 @@ impl Decoder for MessageCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>> {
-        let mut state: Option<(Opcode, BytesMut)> = None;
+        let mut state = mem::replace(&mut self.interrupted_message, None);
         loop {
             let (header, data_range) = if let Some(tuple) = FrameHeader::validate(&src)? {
                 tuple
             } else {
+                self.interrupted_message = state;
                 return Ok(None);
             };
 
             if data_range.end > src.len() {
+                self.interrupted_message = state;
                 return Ok(None);
             }
 
@@ -155,8 +161,17 @@ impl Decoder for MessageCodec {
             };
 
             state = match (state, header.fin, header.opcode) {
-                (Some(_), _, Some(opcode)) => {
-                    return Err(format!("continuation frame should have continuation opcode, not {:?}", opcode).into());
+                (Some(state), fin, Some(opcode)) => {
+                    if !fin || !opcode.is_control() {
+                        return Err(
+                            format!("continuation frame should have continuation opcode, not {:?}", opcode).into(),
+                        );
+                    }
+
+                    self.interrupted_message = Some(state);
+
+                    let message = Message::new(opcode, data)?;
+                    return Ok(Some(message));
                 }
 
                 (Some((opcode, mut partial_data)), true, None) => {
@@ -176,7 +191,7 @@ impl Decoder for MessageCodec {
                 (None, true, Some(opcode)) => {
                     let message = Message::new(opcode, data)?;
                     return Ok(Some(message));
-                },
+                }
 
                 (None, true, None) => {
                     return Err("first frame should not be continuation".into());
