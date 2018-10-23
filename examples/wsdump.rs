@@ -2,7 +2,8 @@
 
 extern crate bytes;
 extern crate futures;
-extern crate tokio;
+extern crate tokio_core;
+extern crate tokio_timer;
 extern crate url;
 extern crate websocket_lite;
 
@@ -18,7 +19,8 @@ use bytes::{Bytes, BytesMut};
 use futures::{Async, Future, IntoFuture, Sink, Stream};
 use futures::future::{self, Either, Loop};
 use structopt::StructOpt;
-use tokio::timer::Delay;
+use tokio_core::reactor::Core;
+use tokio_timer::Delay;
 use url::Url;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 
@@ -72,65 +74,61 @@ struct Opt {
 fn main() -> Result<()> {
     let Opt { eof_wait, ws_url } = Opt::from_args();
 
-    let f = ClientBuilder::from_url(ws_url)
-        .async_connect()
-        .and_then(move |client| {
-            let (sink, stream) = client.split();
+    let f = ClientBuilder::from_url(ws_url).async_connect().and_then(move |client| {
+        let (sink, stream) = client.split();
 
-            let send_loop = future::loop_fn((Stdin::new(), sink), move |(stream, sink)| {
-                stream
-                    .into_future()
-                    .map_err(|(e, _stream)| Into::into(e))
-                    .and_then(move |(data, stream)| {
-                        if let Some(data) = data {
-                            Either::A(
-                                Message::new(Opcode::Text, data)
-                                    .map_err(Into::into)
-                                    .into_future()
-                                    .and_then(|message| sink.send(message))
-                                    .map(|sink| Loop::Continue((stream, sink))),
-                            )
-                        } else {
-                            Either::B(
-                                Delay::new(Instant::now() + eof_wait)
-                                    .map_err(Into::into)
-                                    .and_then(|()| future::ok(Loop::Break(()))),
-                            )
-                        }
-                    })
-            });
+        let send_loop = future::loop_fn((Stdin::new(), sink), move |(stream, sink)| {
+            stream
+                .into_future()
+                .map_err(|(e, _stream)| Into::into(e))
+                .and_then(move |(data, stream)| {
+                    if let Some(data) = data {
+                        Either::A(
+                            Message::new(Opcode::Text, data)
+                                .map_err(Into::into)
+                                .into_future()
+                                .and_then(|message| sink.send(message))
+                                .map(|sink| Loop::Continue((stream, sink))),
+                        )
+                    } else {
+                        Either::B(
+                            Delay::new(Instant::now() + eof_wait)
+                                .map_err(Into::into)
+                                .and_then(|()| future::ok(Loop::Break(()))),
+                        )
+                    }
+                })
+        });
 
-            let recv_loop = future::loop_fn(stream, |stream| {
-                stream
-                    .into_future()
-                    .map_err(|(e, _stream)| e)
-                    .and_then(|(message, client)| {
-                        let message = if let Some(message) = message {
-                            message
-                        } else {
-                            return Ok(Loop::Break(()));
-                        };
+        let recv_loop = future::loop_fn(stream, |stream| {
+            stream
+                .into_future()
+                .map_err(|(e, _stream)| e)
+                .and_then(|(message, client)| {
+                    let message = if let Some(message) = message {
+                        message
+                    } else {
+                        return Ok(Loop::Break(()));
+                    };
 
-                        let bytes = if let Some(s) = message.as_text() {
-                            s.as_bytes()
-                        } else {
-                            &message.data()
-                        };
+                    let bytes = if let Some(s) = message.as_text() {
+                        s.as_bytes()
+                    } else {
+                        &message.data()
+                    };
 
-                        let stdout = io::stdout();
-                        let mut stdout = stdout.lock();
-                        stdout.write_all(bytes)?;
-                        stdout.flush()?;
-                        Ok(Loop::Continue(client))
-                    })
-            });
+                    let stdout = io::stdout();
+                    let mut stdout = stdout.lock();
+                    stdout.write_all(bytes)?;
+                    stdout.flush()?;
+                    Ok(Loop::Continue(client))
+                })
+        });
 
-            Future::select(send_loop, recv_loop)
-                .map(|(value, _other)| value)
-                .map_err(|(e, _other)| e)
-        })
-        .map_err(|e| println!("{}", e));
+        Future::select(send_loop, recv_loop)
+            .map(|(value, _other)| value)
+            .map_err(|(e, _other)| e)
+    });
 
-    tokio::run(f);
-    Ok(())
+    Core::new()?.run(f)
 }

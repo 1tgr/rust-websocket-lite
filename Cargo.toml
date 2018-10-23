@@ -24,8 +24,8 @@ url = "1"
 [dev-dependencies]
 quickcheck = "0.7"
 structopt = "0.2"
-tokio = "0.1"
 tokio-core = "0.1"
+tokio-timer = "0.2"
 
 [features]
 default = ["ssl-native-tls"]

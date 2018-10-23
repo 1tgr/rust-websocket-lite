@@ -19,7 +19,7 @@ use websocket_lite::{ClientBuilder, Error, Message, Opcode, Result};
 fn main() -> Result<()> {
     let addr = "ws://127.0.0.1:9001";
     let agent = "rust-websocket-lite";
-    let mut core = Core::new().unwrap();
+    let mut core = Core::new()?;
 
     println!("Using fuzzingserver {}", addr);
     println!("Using agent {}", agent);
