@@ -7,6 +7,8 @@ extern crate futures;
 extern crate tokio_core;
 extern crate websocket_lite;
 
+use std::io::{self, Write};
+
 use futures::{Future, IntoFuture};
 use futures::future::{self, Loop};
 use futures::sink::Sink;
@@ -38,15 +40,18 @@ fn main() -> Result<()> {
             .map_err(Into::into)
             .into_future()
             .and_then(|builder| builder.async_connect_insecure())
+            .and_then(|duplex| {
+                let stdout = io::stdout();
+                let mut stdout = stdout.lock();
+                write!(stdout, "Executing test case: {}/{}\r", case_id, case_count)?;
+                stdout.flush()?;
+                Ok(duplex)
+            })
             .and_then(move |duplex| {
-                println!("Executing test case: {}/{}", case_id, case_count);
                 future::loop_fn(duplex, |stream| {
                     stream
                         .into_future()
-                        .or_else(|(err, stream)| {
-                            println!("Could not receive message: {:?}", err);
-                            stream.send(Message::close(None)).map(|s| (None, s))
-                        })
+                        .or_else(|(_err, stream)| stream.send(Message::close(None)).map(|s| (None, s)))
                         .and_then(|(msg, stream)| -> Box<Future<Item = _, Error = _>> {
                             let msg = if let Some(msg) = msg {
                                 msg
@@ -55,10 +60,16 @@ fn main() -> Result<()> {
                             };
 
                             match msg.opcode() {
-                                Opcode::Text | Opcode::Binary => Box::new(stream.send(msg).map(|s| Loop::Continue(s))),
-                                Opcode::Ping => {
-                                    Box::new(stream.send(Message::pong(msg.into_data())).map(|s| Loop::Continue(s)))
+                                Opcode::Text | Opcode::Binary => {
+                                    Box::new(stream.send(msg).map(|stream| Loop::Continue(stream)))
                                 }
+
+                                Opcode::Ping => Box::new(
+                                    stream
+                                        .send(Message::pong(msg.into_data()))
+                                        .map(|stream| Loop::Continue(stream)),
+                                ),
+
                                 Opcode::Close => Box::new(stream.send(Message::close(None)).map(|_| Loop::Break(()))),
                                 Opcode::Pong => Box::new(future::ok(Loop::Continue(stream))),
                             }

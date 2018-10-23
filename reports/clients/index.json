@@ -307,7 +307,7 @@
          "reportfile": "rust_websocket_lite_case_5_14.json"
       },
       "5.15": {
-         "behavior": "NON-STRICT",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_5_15.json"
@@ -349,14 +349,14 @@
          "reportfile": "rust_websocket_lite_case_5_20.json"
       },
       "5.3": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_5_3.json"
       },
       "5.4": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_5_4.json"
       },
@@ -397,14 +397,14 @@
          "reportfile": "rust_websocket_lite_case_6_1_1.json"
       },
       "6.1.2": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_1_2.json"
       },
       "6.1.3": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_1_3.json"
       },
@@ -715,8 +715,8 @@
          "reportfile": "rust_websocket_lite_case_6_2_1.json"
       },
       "6.2.2": {
-         "behavior": "FAILED",
-         "behaviorClose": "FAILED",
+         "behavior": "OK",
+         "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_2_2.json"
       },
@@ -1081,7 +1081,7 @@
          "reportfile": "rust_websocket_lite_case_6_3_2.json"
       },
       "6.4.1": {
-         "behavior": "FAILED",
+         "behavior": "OK",
          "behaviorClose": "OK",
          "remoteCloseCode": null,
          "reportfile": "rust_websocket_lite_case_6_4_1.json"

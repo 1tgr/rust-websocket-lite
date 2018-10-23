@@ -112,7 +112,22 @@ pub struct MessageCodec {
 
 impl MessageCodec {
     pub(crate) fn new() -> Self {
-        MessageCodec { masker: Masker::new() }
+        MessageCodec {
+            masker: Masker::new(),
+        }
+    }
+}
+
+fn validate_fragment(opcode: Opcode, data: &[u8]) -> Result<()> {
+    match opcode {
+        Opcode::Text => {
+            str::from_utf8(data)?;
+            Ok(())
+        }
+
+        Opcode::Binary => Ok(()),
+
+        _ => Err("control frames must not be fragmented".into()),
     }
 }
 
@@ -121,34 +136,72 @@ impl Decoder for MessageCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>> {
-        let (header, data_range) = if let Some(tuple) = FrameHeader::validate(&src)? {
-            tuple
-        } else {
-            return Ok(None);
-        };
+        let mut state: Option<(Opcode, BytesMut)> = None;
+        loop {
+            let (header, data_range) = if let Some(tuple) = FrameHeader::validate(&src)? {
+                tuple
+            } else {
+                return Ok(None);
+            };
 
-        if data_range.end > src.len() {
-            return Ok(None);
+            if data_range.end > src.len() {
+                return Ok(None);
+            }
+
+            let data = src.split_to(data_range.end)
+                .freeze()
+                .slice(data_range.start, data_range.end);
+
+            let data = if let Some(mask) = header.mask {
+                // Note: clients never need decode masked messages because masking is only used for client -> server frames.
+                // However this code is used to test round tripping of masked messages.
+                self.masker.mask(data, mask)
+            } else {
+                data
+            };
+
+            state = match (state, header.fin, header.opcode) {
+                (Some(_), _, Some(opcode)) => {
+                    return Err(format!("continuation frame should have continuation opcode, not {:?}", opcode).into());
+                }
+
+                (Some((opcode, mut partial_data)), true, None) => {
+                    validate_fragment(opcode, &data)?;
+                    partial_data.extend_from_slice(&data);
+
+                    let message = Message {
+                        opcode,
+                        data: partial_data.freeze(),
+                    };
+
+                    return Ok(Some(message));
+                }
+
+                (Some((opcode, mut partial_data)), false, None) => {
+                    validate_fragment(opcode, &data)?;
+                    partial_data.extend_from_slice(&data);
+                    Some((opcode, partial_data))
+                }
+
+                (None, true, Some(opcode)) => {
+                    let message = Message::new(opcode, data)?;
+                    return Ok(Some(message));
+                },
+
+                (None, true, None) => {
+                    return Err("first frame should not be continuation".into());
+                }
+
+                (None, false, Some(opcode)) => {
+                    validate_fragment(opcode, &data)?;
+                    Some((opcode, data.into()))
+                }
+
+                (None, false, None) => {
+                    return Err("received continuation without seeing the first frame".into());
+                }
+            }
         }
-
-        if !header.fin {
-            // TODO
-            return Err("messages split across multiple frames are not yet supported".into());
-        }
-
-        let data = src.split_to(data_range.end)
-            .freeze()
-            .slice(data_range.start, data_range.end);
-
-        let data = if let Some(mask) = header.mask {
-            // Note: clients never need decode masked messages because masking is only used for client -> server frames.
-            // However this code is used to test round tripping of masked messages.
-            self.masker.mask(data, mask)
-        } else {
-            data
-        };
-
-        Ok(Some(Message::new(header.opcode, data)?))
     }
 }
 
@@ -161,7 +214,7 @@ impl Encoder for MessageCodec {
 
         let header = FrameHeader {
             fin: true,
-            opcode: item.opcode,
+            opcode: Some(item.opcode),
             mask: Some(mask),
             len: item.data.len(),
         };
@@ -200,8 +253,8 @@ mod tests {
 
     fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
         let header = FrameHeader {
-            fin: true, // TODO decode messages split across frames
-            opcode: if is_text { Opcode::Text } else { Opcode::Binary },
+            fin: true, // TODO test messages split across frames
+            opcode: Some(if is_text { Opcode::Text } else { Opcode::Binary }),
             mask: mask.map(|n| n.into()),
             len: data.len(),
         };

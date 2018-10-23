@@ -11,7 +11,7 @@ use super::mask::Mask;
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrameHeader {
     pub fin: bool,
-    pub opcode: Opcode,
+    pub opcode: Option<Opcode>,
     pub mask: Option<Mask>,
     pub len: usize,
 }
@@ -47,8 +47,11 @@ impl FrameHeader {
                 }
             };
 
-            let opcode = b & 0x0f;
-            let opcode = Opcode::try_from(opcode).ok_or_else(|| format!("opcode {} is not supported", opcode))?;
+            let opcode = match b & 0x0f {
+                0 => None,
+                n => Some(Opcode::try_from(n).ok_or_else(|| format!("opcode {} is not supported", n))?),
+            };
+
             (fin, opcode)
         };
 
@@ -74,7 +77,7 @@ impl FrameHeader {
         };
 
         match opcode {
-            Opcode::Text | Opcode::Binary => (),
+            Some(Opcode::Text) | Some(Opcode::Binary) => (),
             _ => {
                 if len >= 126 {
                     return Err(format!(
@@ -109,10 +112,12 @@ impl FrameHeader {
     }
 
     pub fn write_to(&self, dst: &mut BytesMut) {
-        dst.reserve(self.frame_len());
-        dst.put_u8((if self.fin { 0x80 } else { 0x00 }) | u8::from(self.opcode));
-
+        let fin_bit = if self.fin { 0x80 } else { 0x00 };
+        let opcode = self.opcode.map(u8::from).unwrap_or(0);
         let mask_bit = if self.mask.is_some() { 0x80 } else { 0x00 };
+        dst.reserve(self.frame_len());
+        dst.put_u8(fin_bit | opcode);
+
         if self.len > 65535 {
             dst.put_u8(mask_bit | 127);
             dst.put_u64_be(self.len as u64);
@@ -140,7 +145,7 @@ mod tests {
     fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) {
         let header = FrameHeader {
             fin,
-            opcode: if is_text { Opcode::Text } else { Opcode::Binary },
+            opcode: Some(if is_text { Opcode::Text } else { Opcode::Binary }),
             mask: mask.map(|n| n.into()),
             len,
         };
