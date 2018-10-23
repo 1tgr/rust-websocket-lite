@@ -1,7 +1,9 @@
 [package]
 name = "websocket-lite"
+description = "A fast, low-overhead WebSocket client"
 version = "0.1.0"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
+license = "MIT"
 
 [dependencies]
 base64 = "0.9"
@@ -33,5 +35,6 @@ nightly = []
 ssl-native-tls = ["native-tls", "tokio-tls"]
 ssl-openssl = ["openssl", "tokio-openssl"]
 
-[patch.crates-io]
-openssl = { git = "https://github.com/sfackler/rust-openssl" }
+## Uncomment to enable the SSLKEYLOGFILE environment variable when the ssl-openssl feature is used
+# [patch.crates-io]
+# openssl = { git = "https://github.com/sfackler/rust-openssl" }
