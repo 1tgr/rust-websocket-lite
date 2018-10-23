@@ -121,14 +121,6 @@ impl MessageCodec {
     }
 }
 
-fn validate_fragment(opcode: Opcode) -> result::Result<(), &'static str> {
-    if opcode.is_control() {
-        Err("control frames must not be fragmented")
-    } else {
-        Ok(())
-    }
-}
-
 impl Decoder for MessageCodec {
     type Item = Message;
     type Error = Error;
@@ -160,51 +152,35 @@ impl Decoder for MessageCodec {
                 data
             };
 
-            state = match (state, header.fin, header.opcode) {
-                (Some(state), fin, Some(opcode)) => {
-                    if !fin || !opcode.is_control() {
-                        return Err(
-                            format!("continuation frame should have continuation opcode, not {:?}", opcode).into(),
-                        );
+            state = if let Some((partial_opcode, mut partial_data)) = state {
+                if let Some(opcode) = header.opcode {
+                    if header.fin && opcode.is_control() {
+                        self.interrupted_message = Some((partial_opcode, partial_data));
+                        return Ok(Some(Message::new(opcode, data)?));
                     }
 
-                    self.interrupted_message = Some(state);
-
-                    let message = Message::new(opcode, data)?;
-                    return Ok(Some(message));
-                }
-
-                (Some((opcode, mut partial_data)), true, None) => {
-                    validate_fragment(opcode)?;
+                    return Err(format!("continuation frame must have continuation opcode, not {:?}", opcode).into());
+                } else {
                     partial_data.extend_from_slice(&data);
 
-                    let message = Message::new(opcode, partial_data)?;
-                    return Ok(Some(message));
+                    if header.fin {
+                        return Ok(Some(Message::new(partial_opcode, partial_data)?));
+                    }
+
+                    Some((partial_opcode, partial_data))
+                }
+            } else if let Some(opcode) = header.opcode {
+                if header.fin {
+                    return Ok(Some(Message::new(opcode, data)?));
                 }
 
-                (Some((opcode, mut partial_data)), false, None) => {
-                    validate_fragment(opcode)?;
-                    partial_data.extend_from_slice(&data);
-                    Some((opcode, partial_data))
+                if opcode.is_control() {
+                    return Err("control frames must not be fragmented".into());
                 }
 
-                (None, true, Some(opcode)) => {
-                    let message = Message::new(opcode, data)?;
-                    return Ok(Some(message));
-                }
-
-                (None, true, None) => {
-                    return Err("first frame should not be continuation".into());
-                }
-
-                (None, false, Some(opcode)) => {
-                    validate_fragment(opcode)?;
-                    Some((opcode, data.into()))
-                }
-
-                (None, false, None) => {
-                    return Err("received continuation without seeing the first frame".into());
-                }
+                Some((opcode, data.into()))
+            } else {
+                return Err("continuation must not be first frame".into());
             }
         }
     }
