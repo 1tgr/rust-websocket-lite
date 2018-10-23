@@ -43,7 +43,7 @@ macro_rules! writeok {
     }
 }
 
-fn build_request(url: Url, key: &str) -> String {
+fn build_request(url: &Url, key: &str) -> String {
     let mut s = String::new();
     writeok!(s, "GET {path}", path = url.path());
     if let Some(query) = url.query() {
@@ -158,7 +158,7 @@ impl ClientBuilder {
 
         let key = str::from_utf8(&key_base64).unwrap();
         let upgrade_codec = UpgradeCodec::new(key);
-        tokio_io::io::write_all(stream, build_request(self.url, key))
+        tokio_io::io::write_all(stream, build_request(&self.url, key))
             .map_err(Into::into)
             .and_then(move |(stream, _request)| upgrade_codec.framed(stream).into_future().map_err(|(e, _framed)| e))
             .and_then(move |(opt, framed)| {

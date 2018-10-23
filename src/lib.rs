@@ -2,6 +2,7 @@
 #![deny(warnings)]
 #![cfg_attr(feature = "nightly", feature(slice_align_to))]
 #![cfg_attr(feature = "nightly", feature(test))]
+#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 
 //! A fast, low-overhead WebSocket client.
 //!

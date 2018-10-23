@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
 use bytes::{Bytes, BytesMut};
 use rand;
 use take_mut;
