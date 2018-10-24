@@ -50,20 +50,39 @@ extern crate tokio_openssl;
 use std::error;
 use std::result;
 
-/// Represents errors that can be exposed by this crate.
-pub type Error = Box<error::Error + 'static>;
-
-/// Represents results returned by the non-async functions in this crate.
-pub type Result<T> = result::Result<T, Error>;
-
 mod client;
 mod frame;
 mod mask;
 mod message;
 mod opcode;
 mod ssl;
+mod sync;
 mod upgrade;
 
-pub use client::{AsyncNetworkStream, Client, ClientBuilder};
+pub use client::ClientBuilder;
 pub use message::{Message, MessageCodec};
 pub use opcode::Opcode;
+
+use tokio_codec::Framed;
+use tokio_io::{AsyncRead, AsyncWrite};
+
+/// Represents errors that can be exposed by this crate.
+pub type Error = Box<error::Error + 'static>;
+
+/// Represents results returned by the non-async functions in this crate.
+pub type Result<T> = result::Result<T, Error>;
+
+/// A type that is both `AsyncRead` and `AsyncWrite`.
+pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
+
+impl<S> AsyncNetworkStream for S
+where
+    S: AsyncRead + AsyncWrite,
+{
+}
+
+/// Exposes a `Sink` for sending WebSocket messages, and a `Stream` for receiving them.
+pub type AsyncClient<S> = Framed<S, MessageCodec>;
+
+/// Sends and receives WebSocket messages.
+pub type Client<S> = sync::Framed<S, MessageCodec>;

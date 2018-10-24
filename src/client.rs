@@ -1,5 +1,6 @@
-use std::fmt::Write;
-use std::net::ToSocketAddrs;
+use std::fmt;
+use std::io::{Read, Write};
+use std::net::{self, SocketAddr, ToSocketAddrs};
 use std::result;
 use std::str;
 
@@ -9,26 +10,18 @@ use futures::future::{self, Either, IntoFuture};
 use rand;
 use tokio_codec::{Decoder, Encoder, Framed};
 use tokio_io::{self, AsyncRead, AsyncWrite};
-use tokio_tcp::TcpStream;
+use tokio_tcp;
 use url::{self, Url};
 
-use super::{Error, MessageCodec};
+use super::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, Result};
 use super::ssl;
+use super::sync;
 use super::upgrade::UpgradeCodec;
 
-/// A type that is both `AsyncRead` and `AsyncWrite`.
-pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
-
-impl<S> AsyncNetworkStream for S
-where
-    S: AsyncRead + AsyncWrite,
-{
-}
-
-/// Exposes a `Sink` for sending WebSocket messages, and a `Stream` for receiving them.
-pub type Client<S> = Framed<S, MessageCodec>;
-
-fn set_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2> {
+fn replace_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(
+    framed: Framed<T, C1>,
+    codec: C2,
+) -> Framed<T, C2> {
     // TODO improve this? https://github.com/tokio-rs/tokio/issues/717
     let parts1 = framed.into_parts();
     let mut parts2 = Framed::new(parts1.io, codec).into_parts();
@@ -39,8 +32,23 @@ fn set_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(framed: Frame
 
 macro_rules! writeok {
     ($dst:expr, $($arg:tt)*) => {
-        let _ = $dst.write_fmt(format_args!($($arg)*));
+        let _ = fmt::Write::write_fmt(&mut $dst, format_args!($($arg)*));
     }
+}
+
+fn resolve(url: &Url) -> Result<SocketAddr> {
+    let mut addrs = url.to_socket_addrs()?;
+    addrs.next().ok_or_else(|| "can't resolve host".to_owned().into())
+}
+
+fn make_key(key: Option<[u8; 16]>, key_base64: &mut [u8; 24]) -> &str {
+    let key_bytes = key.unwrap_or_else(rand::random);
+    assert_eq!(
+        24,
+        base64::encode_config_slice(&key_bytes, base64::STANDARD, key_base64)
+    );
+
+    str::from_utf8(key_base64).unwrap()
 }
 
 fn build_request(url: &Url, key: &str) -> String {
@@ -109,26 +117,20 @@ impl ClientBuilder {
     ///
     /// `wss://...` URLs are not supported by this method. Use `async_connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
-    pub fn async_connect_insecure(self) -> impl Future<Item = Client<TcpStream>, Error = Error> {
-        self.url
-            .to_socket_addrs()
-            .map_err(Into::into)
-            .and_then(|mut addrs| addrs.next().ok_or_else(|| "can't resolve host".to_owned().into()))
+    pub fn async_connect_insecure(self) -> impl Future<Item = AsyncClient<tokio_tcp::TcpStream>, Error = Error> {
+        resolve(&self.url)
             .into_future()
-            .and_then(|addr| TcpStream::connect(&addr).map_err(Into::into))
+            .and_then(|addr| tokio_tcp::TcpStream::connect(&addr).map_err(Into::into))
             .and_then(|stream| self.async_connect_on(stream))
     }
 
     /// Establish a connection to the WebSocket server.
     pub fn async_connect(
         self,
-    ) -> impl Future<Item = Client<Box<AsyncNetworkStream + Sync + Send + 'static>>, Error = Error> {
-        self.url
-            .to_socket_addrs()
-            .map_err(Into::into)
-            .and_then(|mut addrs| addrs.next().ok_or_else(|| "can't resolve host".to_owned().into()))
+    ) -> impl Future<Item = AsyncClient<Box<AsyncNetworkStream + Sync + Send + 'static>>, Error = Error> {
+        resolve(&self.url)
             .into_future()
-            .and_then(|addr| TcpStream::connect(&addr).map_err(Into::into))
+            .and_then(|addr| tokio_tcp::TcpStream::connect(&addr).map_err(Into::into))
             .and_then(move |stream| {
                 if self.url.scheme() == "wss" {
                     let domain = self.url.domain().unwrap_or("").to_owned();
@@ -144,6 +146,16 @@ impl ClientBuilder {
             .and_then(|(stream, this)| this.async_connect_on(stream))
     }
 
+    /// Establish a connection to the WebSocket server.
+    ///
+    /// `wss://...` URLs are not supported by this method. Use `connect` if you need to be able to handle
+    /// both `ws://...` and `wss://...` URLs.
+    pub fn connect_insecure(self) -> Result<Client<net::TcpStream>> {
+        let addr = resolve(&self.url)?;
+        let stream = net::TcpStream::connect(&addr)?;
+        self.connect_on(stream)
+    }
+
     /// Take over an already established stream and use it to send and receive WebSocket messages.
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
@@ -151,23 +163,32 @@ impl ClientBuilder {
     pub fn async_connect_on<S: AsyncRead + AsyncWrite>(
         self,
         stream: S,
-    ) -> impl Future<Item = Client<S>, Error = Error> {
-        let key_bytes = self.key.unwrap_or_else(rand::random);
+    ) -> impl Future<Item = AsyncClient<S>, Error = Error> {
         let mut key_base64 = [0; 24];
-        assert_eq!(
-            24,
-            base64::encode_config_slice(&key_bytes, base64::STANDARD, &mut key_base64)
-        );
-
-        let key = str::from_utf8(&key_base64).unwrap();
+        let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
         tokio_io::io::write_all(stream, build_request(&self.url, key))
             .map_err(Into::into)
             .and_then(move |(stream, _request)| upgrade_codec.framed(stream).into_future().map_err(|(e, _framed)| e))
             .and_then(move |(opt, framed)| {
                 opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
-                Ok(set_codec(framed, MessageCodec::new()))
+                Ok(replace_codec(framed, MessageCodec::new()))
             })
+    }
+
+    /// Take over an already established stream and use it to send and receive WebSocket messages.
+    ///
+    /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
+    /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
+    pub fn connect_on<S: Read + Write>(self, mut stream: S) -> Result<Client<S>> {
+        let mut key_base64 = [0; 24];
+        let key = make_key(self.key, &mut key_base64);
+        let upgrade_codec = UpgradeCodec::new(key);
+        stream.write_all(build_request(&self.url, key).as_ref())?;
+
+        let mut framed = sync::Framed::new(stream, upgrade_codec);
+        framed.receive()?.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
+        Ok(framed.replace_codec(MessageCodec::new()))
     }
 }
 
@@ -232,30 +253,42 @@ mod tests {
         }
     }
 
+    static REQUEST: &'static str = "GET /stream?query HTTP/1.1\r\n\
+                                    Host: localhost:8000\r\n\
+                                    Upgrade: websocket\r\n\
+                                    Connection: Upgrade\r\n\
+                                    Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+                                    Sec-WebSocket-Version: 13\r\n\
+                                    \r\n";
+
+    static RESPONSE: &'static str = "HTTP/1.1 101 Switching Protocols\r\n\
+                                     Upgrade: websocket\r\n\
+                                     Connection: Upgrade\r\n\
+                                     Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
+                                     \r\n";
+
     #[test]
-    fn can_connect_on() -> Result<()> {
-        let request = "GET /stream?query HTTP/1.1\r\n\
-                       Host: localhost:8000\r\n\
-                       Upgrade: websocket\r\n\
-                       Connection: Upgrade\r\n\
-                       Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
-                       Sec-WebSocket-Version: 13\r\n\
-                       \r\n";
-
-        let response = "HTTP/1.1 101 Switching Protocols\r\n\
-                        Upgrade: websocket\r\n\
-                        Connection: Upgrade\r\n\
-                        Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
-                        \r\n";
-
-        let mut input = Cursor::new(&response[..]);
+    fn can_async_connect_on() -> Result<()> {
+        let mut input = Cursor::new(&RESPONSE[..]);
         let mut output = Cursor::new(Vec::new());
         ClientBuilder::new("ws://localhost:8000/stream?query")?
             .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
             .async_connect_on(ReadWritePair(&mut input, &mut output))
             .wait()?;
 
-        assert_eq!(request, str::from_utf8(&output.into_inner())?);
+        assert_eq!(REQUEST, str::from_utf8(&output.into_inner())?);
+        Ok(())
+    }
+
+    #[test]
+    fn can_connect_on() -> Result<()> {
+        let mut input = Cursor::new(&RESPONSE[..]);
+        let mut output = Cursor::new(Vec::new());
+        ClientBuilder::new("ws://localhost:8000/stream?query")?
+            .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
+            .connect_on(ReadWritePair(&mut input, &mut output))?;
+
+        assert_eq!(REQUEST, str::from_utf8(&output.into_inner())?);
         Ok(())
     }
 }
