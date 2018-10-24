@@ -4,7 +4,7 @@
 
 A fast, low-overhead WebSocket client.
 
-This library is optimised for receiving a high volume of messages over a long period. A key feature is that is makes
+This library is optimised for receiving a high volume of messages over a long period. A key feature is that it makes
 no memory allocations once the connection is set up and the initial messages have been sent and received; it reuses
 a single pair of buffers, which are sized for the longest message seen so far.
 
