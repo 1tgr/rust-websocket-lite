@@ -9,7 +9,7 @@ use super::{Error, Opcode, Result};
 use super::frame::FrameHeader;
 use super::mask::{Mask, Masker};
 
-/// A text string or a block of binary data that can be sent or recevied over a WebSocket.
+/// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Message {
     opcode: Opcode,
@@ -19,8 +19,8 @@ pub struct Message {
 impl Message {
     /// Creates a message from a `Bytes` object.
     ///
-    /// The message can be tagged as text or binary. When the `is_text` is `true` this function validates the bytes in
-    /// `data` and returns `Err` if they do not contain valid UTF-8 text.
+    /// The message can be tagged as text or binary. When the `opcode` parameter is [`Opcode::Text`](enum.Opcode.html)
+    /// this function validates the bytes in `data` and returns `Err` if they do not contain valid UTF-8 text.
     pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
         let data = data.into();
 
@@ -48,6 +48,9 @@ impl Message {
     }
 
     /// Creates a message that indicates the connection is about to be closed.
+    ///
+    /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
+    /// may be defined by a particular WebSocket server.
     pub fn close(reason: Option<(u16, &str)>) -> Self {
         let data = if let Some((code, reason)) = reason {
             let mut buf = BytesMut::new();
@@ -66,6 +69,8 @@ impl Message {
     }
 
     /// Creates a message requesting a pong response.
+    ///
+    /// The client can send one of these to request a pong response from the server.
     pub fn ping<B: Into<Bytes>>(data: B) -> Self {
         Message {
             opcode: Opcode::Ping,
@@ -74,6 +79,8 @@ impl Message {
     }
 
     /// Creates a response to a ping message.
+    ///
+    /// The client can send one of these in response to a ping from the server.
     pub fn pong<B: Into<Bytes>>(data: B) -> Self {
         Message {
             opcode: Opcode::Pong,
@@ -106,7 +113,10 @@ impl Message {
     }
 }
 
-/// Tokio codec for WebSocket messages.
+/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
+///
+/// A codec is part of the `Framed` struct returned by [`ClientBuilder`](struct.ClientBuilder.html).
+/// You don't need to create one of these manually.
 pub struct MessageCodec {
     masker: Masker,
     interrupted_message: Option<(Opcode, BytesMut)>,

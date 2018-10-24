@@ -10,4 +10,5 @@ a single pair of buffers, which are sized for the longest message seen so far.
 
 Only asynchronous access is provided at present. `native_tls` provides the TLS functionality for `wss://...` servers.
 
-This crate is fully conformant with the [Autobahn test suite](https://github.com/crossbario/autobahn-testsuite) fuzzingserver module.
+This crate is fully conformant with the fuzzingserver module in the
+[Autobahn test suite](https://github.com/crossbario/autobahn-testsuite).

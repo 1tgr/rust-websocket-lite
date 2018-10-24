@@ -106,6 +106,9 @@ impl ClientBuilder {
     }
 
     /// Establish a connection to the WebSocket server.
+    ///
+    /// `wss://...` URLs are not supported by this method. Use `async_connect` if you need to be able to handle
+    /// both `ws://...` and `wss://...` URLs.
     pub fn async_connect_insecure(self) -> impl Future<Item = Client<TcpStream>, Error = Error> {
         self.url
             .to_socket_addrs()

@@ -1,8 +1,9 @@
 [package]
 name = "websocket-lite"
 description = "A fast, low-overhead WebSocket client"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
+repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 
 [dependencies]
