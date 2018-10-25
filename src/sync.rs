@@ -42,12 +42,15 @@ impl<S: Write, C: Encoder> Framed<S, C> {
 impl<S: Read, C: Decoder> Framed<S, C> {
     pub fn receive(&mut self) -> Result<Option<C::Item>, C::Error> {
         loop {
-            if let Some(frame) = self.codec.decode(&mut self.read_buf)? {
-                return Ok(Some(frame));
-            }
+            if self.read_buf.capacity() == 0 {
+                self.read_buf.reserve(8 * 1024);
+            } else {
+                if let Some(frame) = self.codec.decode(&mut self.read_buf)? {
+                    return Ok(Some(frame));
+                }
 
-            let extra = if self.read_buf.capacity() == 0 { 8 * 1024 } else { 1 };
-            self.read_buf.reserve(extra);
+                self.read_buf.reserve(1);
+            }
 
             let n = unsafe {
                 let n = self.stream.read(self.read_buf.bytes_mut())?;

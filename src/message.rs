@@ -103,7 +103,8 @@ impl Message {
         self.data
     }
 
-    /// For text messages, return a reference to the text.
+    /// For messages with opcode [`Opcode::Text`](enum.Opcode.html), returns a reference to the text.
+    /// Returns `None` otherwise.
     pub fn as_text(&self) -> Option<&str> {
         if self.opcode.is_text() {
             Some(unsafe { str::from_utf8_unchecked(&self.data) })

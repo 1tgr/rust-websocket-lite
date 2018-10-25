@@ -13,7 +13,7 @@ use tokio_io::{self, AsyncRead, AsyncWrite};
 use tokio_tcp;
 use url::{self, Url};
 
-use super::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, Result};
+use super::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, NetworkStream, Result};
 use super::ssl;
 use super::sync;
 use super::upgrade::UpgradeCodec;
@@ -113,7 +113,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Establish a connection to the WebSocket server.
+    /// Establishes a connection to the WebSocket server.
     ///
     /// `wss://...` URLs are not supported by this method. Use `async_connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
@@ -124,7 +124,17 @@ impl ClientBuilder {
             .and_then(|stream| self.async_connect_on(stream))
     }
 
-    /// Establish a connection to the WebSocket server.
+    /// Establishes a connection to the WebSocket server.
+    ///
+    /// `wss://...` URLs are not supported by this method. Use `connect` if you need to be able to handle
+    /// both `ws://...` and `wss://...` URLs.
+    pub fn connect_insecure(self) -> Result<Client<net::TcpStream>> {
+        let addr = resolve(&self.url)?;
+        let stream = net::TcpStream::connect(&addr)?;
+        self.connect_on(stream)
+    }
+
+    /// Establishes a connection to the WebSocket server.
     pub fn async_connect(
         self,
     ) -> impl Future<Item = AsyncClient<Box<AsyncNetworkStream + Sync + Send + 'static>>, Error = Error> {
@@ -134,7 +144,7 @@ impl ClientBuilder {
             .and_then(move |stream| {
                 if self.url.scheme() == "wss" {
                     let domain = self.url.domain().unwrap_or("").to_owned();
-                    Either::A(ssl::wrap(domain, stream).map(move |stream| {
+                    Either::A(ssl::async_wrap(domain, stream).map(move |stream| {
                         let b: Box<AsyncNetworkStream + Sync + Send + 'static> = Box::new(stream);
                         (b, self)
                     }))
@@ -146,17 +156,25 @@ impl ClientBuilder {
             .and_then(|(stream, this)| this.async_connect_on(stream))
     }
 
-    /// Establish a connection to the WebSocket server.
-    ///
-    /// `wss://...` URLs are not supported by this method. Use `connect` if you need to be able to handle
-    /// both `ws://...` and `wss://...` URLs.
-    pub fn connect_insecure(self) -> Result<Client<net::TcpStream>> {
+    /// Establishes a connection to the WebSocket server.
+    pub fn connect(self) -> Result<Client<Box<NetworkStream + Sync + Send + 'static>>> {
         let addr = resolve(&self.url)?;
         let stream = net::TcpStream::connect(&addr)?;
+
+        let stream = if self.url.scheme() == "wss" {
+            let domain = self.url.domain().unwrap_or("");
+            let stream = ssl::wrap(domain, stream)?;
+            let b: Box<NetworkStream + Sync + Send + 'static> = Box::new(stream);
+            b
+        } else {
+            let b: Box<NetworkStream + Sync + Send + 'static> = Box::new(stream);
+            b
+        };
+
         self.connect_on(stream)
     }
 
-    /// Take over an already established stream and use it to send and receive WebSocket messages.
+    /// Takes over an already established stream and use it to send and receive WebSocket messages.
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
@@ -176,7 +194,7 @@ impl ClientBuilder {
             })
     }
 
-    /// Take over an already established stream and use it to send and receive WebSocket messages.
+    /// Takes over an already established stream and use it to send and receive WebSocket messages.
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.

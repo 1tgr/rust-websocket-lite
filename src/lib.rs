@@ -6,11 +6,12 @@
 
 //! A fast, low-overhead WebSocket client.
 //!
-//! This library is optimised for receiving a high volume of messages over a long period. A key feature is that it makes
+//! This crate is optimised for receiving a high volume of messages over a long period. A key feature is that it makes
 //! no memory allocations once the connection is set up and the initial messages have been sent and received; it reuses
 //! a single pair of buffers, which are sized for the longest message seen so far.
 //!
-//! Only asynchronous access is provided at present. `native_tls` provides the TLS functionality for `wss://...` servers.
+//! You can use this crate in both asynchronous (futures-based) and synchronous code.
+//! `native_tls` provides the TLS functionality for `wss://...` servers.
 //!
 //! This crate is fully conformant with the fuzzingserver module in the
 //! [Autobahn test suite](https://github.com/crossbario/autobahn-testsuite).
@@ -47,9 +48,6 @@ extern crate openssl;
 #[cfg(feature = "ssl-openssl")]
 extern crate tokio_openssl;
 
-use std::error;
-use std::result;
-
 mod client;
 mod frame;
 mod mask;
@@ -63,6 +61,10 @@ pub use client::ClientBuilder;
 pub use message::{Message, MessageCodec};
 pub use opcode::Opcode;
 
+use std::error;
+use std::io::{Read, Write};
+use std::result;
+
 use tokio_codec::Framed;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -72,7 +74,7 @@ pub type Error = Box<error::Error + 'static>;
 /// Represents results returned by the non-async functions in this crate.
 pub type Result<T> = result::Result<T, Error>;
 
-/// A type that is both `AsyncRead` and `AsyncWrite`.
+/// Used by [`AsyncClient`](type.AsyncClient.html) to represent types that are `AsyncRead` and `AsyncWrite`.
 pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
 
 impl<S> AsyncNetworkStream for S
@@ -81,8 +83,17 @@ where
 {
 }
 
-/// Exposes a `Sink` for sending WebSocket messages, and a `Stream` for receiving them.
+/// Used by [`Client`](type.Client.html) to represent types that are `Read` and `Write`.
+pub trait NetworkStream: Read + Write {}
+
+impl<S> NetworkStream for S
+where
+    S: Read + Write,
+{
+}
+
+/// Exposes a `Sink` and a `Stream` for sending and receiving WebSocket messages asynchronously.
 pub type AsyncClient<S> = Framed<S, MessageCodec>;
 
-/// Sends and receives WebSocket messages.
+/// Sends and receives WebSocket messages synchronously.
 pub type Client<S> = sync::Framed<S, MessageCodec>;
