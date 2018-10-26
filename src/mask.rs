@@ -1,4 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
+use std::mem;
+use std::slice;
+
 use bytes::{Bytes, BytesMut};
 use rand;
 use take_mut;
@@ -24,7 +27,20 @@ impl From<Mask> for u32 {
     }
 }
 
-pub fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
+unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
+    let size = mem::size_of::<T>();
+    if size == 0 {
+        return (&[], data);
+    }
+
+    let len1 = data.len() / size;
+    (
+        slice::from_raw_parts(data.as_ptr() as *const T, len1),
+        &data[len1 * size..],
+    )
+}
+
+fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     for b in data {
         *b ^= mask as u8;
         mask = mask.rotate_right(8);
@@ -33,8 +49,8 @@ pub fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     mask
 }
 
-pub fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
-    debug_assert_eq!(buf.len(), data.len());
+fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
+    assert_eq!(buf.len(), data.len());
 
     for (dest, &src) in buf.into_iter().zip(data) {
         *dest = src ^ (mask as u8);
@@ -44,67 +60,17 @@ pub fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
     mask
 }
 
-#[cfg(feature = "nightly")]
-mod inner {
-    use std::mem;
-    use std::slice;
-
-    use super::{mask_u8_copy, mask_u8_in_place};
-
-    unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
-        let size = mem::size_of::<T>();
-        if size == 0 {
-            return (&[], data);
-        }
-
-        let len1 = data.len() / size;
-        (
-            slice::from_raw_parts(data.as_ptr() as *const T, len1),
-            &data[len1 * size..],
-        )
-    }
-
-    fn mask_aligned_in_place(data: &mut [u32], mask: u32) {
-        for n in data {
-            *n ^= mask;
-        }
-    }
-
-    fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
-        debug_assert_eq!(buf.len(), data.len());
-
-        for (dest, &src) in buf.into_iter().zip(data) {
-            *dest = src ^ mask;
-        }
-    }
-
-    pub fn mask_in_place(data: &mut [u8], mask: u32) {
-        let (data1, data2, data3) = unsafe { data.align_to_mut() };
-        let mask = mask_u8_in_place(data1, mask);
-        mask_aligned_in_place(data2, mask);
-        mask_u8_in_place(data3, mask);
-    }
-
-    pub fn mask_copy(buf: &mut [u8], data: &[u8], mask: u32) {
-        let (buf1, buf2, buf3) = unsafe { buf.align_to_mut() };
-        let (data1, data) = data.split_at(buf1.len());
-        let (data2, data3) = unsafe { unaligned(data) };
-        let mask = mask_u8_copy(buf1, data1, mask);
-        mask_aligned_copy(buf2, data2, mask);
-        mask_u8_copy(buf3, data3, mask);
+fn mask_aligned_in_place(data: &mut [u32], mask: u32) {
+    for n in data {
+        *n ^= mask;
     }
 }
 
-#[cfg(not(feature = "nightly"))]
-mod inner {
-    use super::{mask_u8_copy, mask_u8_in_place};
+fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
+    assert_eq!(buf.len(), data.len());
 
-    pub fn mask_in_place(data: &mut [u8], mask: u32) {
-        mask_u8_in_place(data, mask);
-    }
-
-    pub fn mask_copy(buf: &mut [u8], data: &[u8], mask: u32) {
-        mask_u8_copy(buf, data, mask);
+    for (dest, &src) in buf.into_iter().zip(data) {
+        *dest = src ^ mask;
     }
 }
 
@@ -118,9 +84,16 @@ impl Masker {
     }
 
     pub fn mask(&mut self, data: Bytes, mask: Mask) -> Bytes {
+        let Mask(mask) = mask;
         match data.try_mut() {
             Ok(mut data) => {
-                inner::mask_in_place(&mut data, mask.0);
+                {
+                    let (data1, data2, data3) = unsafe { data.align_to_mut() };
+                    let mask = mask_u8_in_place(data1, mask);
+                    mask_aligned_in_place(data2, mask);
+                    mask_u8_in_place(data3, mask);
+                }
+
                 data.freeze()
             }
 
@@ -128,7 +101,16 @@ impl Masker {
                 take_mut::take(&mut self.buf, |buf| {
                     let mut buf = buf.try_mut().unwrap_or_else(|_old_mask_buf| BytesMut::new());
                     buf.resize(data.len(), 0);
-                    inner::mask_copy(&mut buf, &data, mask.0);
+
+                    {
+                        let (buf1, buf2, buf3) = unsafe { buf.align_to_mut() };
+                        let (data1, data) = data.split_at(buf1.len());
+                        let (data2, data3) = unsafe { unaligned(data) };
+                        let mask = mask_u8_copy(buf1, data1, mask);
+                        mask_aligned_copy(buf2, data2, mask);
+                        mask_u8_copy(buf3, data3, mask);
+                    }
+
                     buf.freeze()
                 });
 
