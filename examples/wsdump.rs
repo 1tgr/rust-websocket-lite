@@ -2,13 +2,11 @@
 
 extern crate bytes;
 extern crate futures;
+extern crate structopt;
 extern crate tokio_core;
 extern crate tokio_timer;
 extern crate url;
 extern crate websocket_lite;
-
-#[cfg_attr(not(feature = "nightly"), macro_use)]
-extern crate structopt;
 
 use std::io::{self, Read, Write};
 use std::mem;
