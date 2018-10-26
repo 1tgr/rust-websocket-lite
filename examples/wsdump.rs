@@ -109,16 +109,15 @@ fn main() -> Result<()> {
                         return Ok(Loop::Break(()));
                     };
 
-                    let bytes = if let Some(s) = message.as_text() {
-                        s.as_bytes()
+                    if let Some(s) = message.as_text() {
+                        println!("{}", s);
                     } else {
-                        &message.data()
+                        let stdout = io::stdout();
+                        let mut stdout = stdout.lock();
+                        stdout.write_all(message.data())?;
+                        stdout.flush()?;
                     };
 
-                    let stdout = io::stdout();
-                    let mut stdout = stdout.lock();
-                    stdout.write_all(bytes)?;
-                    stdout.flush()?;
                     Ok(Loop::Continue(client))
                 })
         });
