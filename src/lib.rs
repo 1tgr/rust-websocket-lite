@@ -56,9 +56,9 @@ mod ssl;
 mod sync;
 mod upgrade;
 
-pub use client::ClientBuilder;
-pub use message::{Message, MessageCodec};
-pub use opcode::Opcode;
+pub use crate::client::ClientBuilder;
+pub use crate::message::{Message, MessageCodec};
+pub use crate::opcode::Opcode;
 
 use std::error;
 use std::io::{Read, Write};

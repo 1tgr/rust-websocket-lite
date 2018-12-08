@@ -11,7 +11,7 @@ mod inner {
     use tokio_io::{AsyncRead, AsyncWrite};
     use tokio_tls::TlsConnectorExt;
 
-    use {Error, Result};
+    use crate::{Error, Result};
 
     pub fn async_wrap<S: AsyncRead + AsyncWrite>(
         domain: String,

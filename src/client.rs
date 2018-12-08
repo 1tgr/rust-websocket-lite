@@ -13,10 +13,10 @@ use tokio_io::{self, AsyncRead, AsyncWrite};
 use tokio_tcp;
 use url::{self, Url};
 
-use super::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, NetworkStream, Result};
-use super::ssl;
-use super::sync;
-use super::upgrade::UpgradeCodec;
+use crate::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, NetworkStream, Result};
+use crate::ssl;
+use crate::sync;
+use crate::upgrade::UpgradeCodec;
 
 fn replace_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(
     framed: Framed<T, C1>,
@@ -221,9 +221,9 @@ mod tests {
     use futures::{Future, Poll};
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    use super::ClientBuilder;
+    use crate::ClientBuilder;
 
-    type Result<T> = result::Result<T, super::Error>;
+    type Result<T> = result::Result<T, crate::Error>;
 
     pub struct ReadWritePair<R, W>(pub R, pub W);
 

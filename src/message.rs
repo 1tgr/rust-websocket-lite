@@ -5,9 +5,9 @@ use std::str::{self, Utf8Error};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use super::{Error, Opcode, Result};
-use super::frame::FrameHeader;
-use super::mask::{Mask, Masker};
+use crate::{Error, Opcode, Result};
+use crate::frame::FrameHeader;
+use crate::mask::{Mask, Masker};
 
 /// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -222,10 +222,10 @@ mod tests {
     use bytes::{BufMut, BytesMut};
     use tokio_codec::{Decoder, Encoder};
 
-    use super::{Message, MessageCodec};
-    use frame::FrameHeader;
-    use mask::Masker;
-    use opcode::Opcode;
+    use crate::{Message, MessageCodec};
+    use crate::frame::FrameHeader;
+    use crate::mask::Masker;
+    use crate::opcode::Opcode;
 
     fn round_trips(is_text: bool, data: String) {
         let message = if is_text {

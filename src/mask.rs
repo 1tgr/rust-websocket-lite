@@ -126,7 +126,7 @@ mod tests {
 
     use bytes::Bytes;
 
-    use super::{Mask, Masker};
+    use crate::mask::{Mask, Masker};
 
     // Test data chosen so that:
     //  - It's not a multiple of 4, ie masking of the unaligned section works
@@ -180,8 +180,8 @@ mod benches {
     use take_mut;
     use test::Bencher;
 
-    use super::Masker;
-    use super::tests::DATA;
+    use crate::Masker;
+    use crate::tests::DATA;
 
     #[bench]
     fn mask_not_shared(b: &mut Bencher) {

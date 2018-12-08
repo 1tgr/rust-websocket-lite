@@ -5,8 +5,8 @@ use std::result;
 use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
 use bytes::{BufMut, BytesMut};
 
-use super::{Opcode, Result};
-use super::mask::Mask;
+use crate::{Opcode, Result};
+use crate::mask::Mask;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrameHeader {
@@ -136,8 +136,8 @@ impl FrameHeader {
 mod tests {
     use bytes::BytesMut;
 
-    use super::FrameHeader;
-    use opcode::Opcode;
+    use crate::frame::FrameHeader;
+    use crate::opcode::Opcode;
 
     fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) {
         let header = FrameHeader {
