@@ -12,11 +12,11 @@ use tokio_codec::{Decoder, Encoder, Framed};
 use tokio_io::{self, AsyncRead, AsyncWrite};
 use tokio_tcp;
 use url::{self, Url};
+use websocket_codec::UpgradeCodec;
 
 use crate::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, NetworkStream, Result};
 use crate::ssl;
 use crate::sync;
-use crate::upgrade::UpgradeCodec;
 
 fn replace_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(
     framed: Framed<T, C1>,
@@ -174,7 +174,7 @@ impl ClientBuilder {
         self.connect_on(stream)
     }
 
-    /// Takes over an already established stream and use it to send and receive WebSocket messages.
+    /// Takes over an already established stream and uses it to send and receive WebSocket messages.
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
@@ -194,7 +194,7 @@ impl ClientBuilder {
             })
     }
 
-    /// Takes over an already established stream and use it to send and receive WebSocket messages.
+    /// Takes over an already established stream and uses it to send and receive WebSocket messages.
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.

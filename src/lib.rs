@@ -18,11 +18,10 @@
 mod client;
 mod ssl;
 mod sync;
-mod upgrade;
 
 pub use crate::client::ClientBuilder;
 
-pub use websocket_codec::{Error, Result, Message, MessageCodec, Opcode};
+pub use websocket_codec::{Error, Message, MessageCodec, Opcode, Result};
 
 use std::io::{Read, Write};
 
