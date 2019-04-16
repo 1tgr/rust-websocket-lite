@@ -1,7 +1,7 @@
 [package]
 name = "websocket-lite"
 description = "A fast, low-overhead WebSocket client"
-version = "0.2.4"
+version = "0.3.0-alpha.6"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
 repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
@@ -10,24 +10,21 @@ edition = "2018"
 [dependencies]
 base64 = "0.9"
 bytes = "0.4"
-futures = "0.1"
-httparse = "1"
-native-tls = { version = "0.1", optional = true }
+futures-preview = "0.3.0-alpha.19"
+native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.5"
-sha1 = "0.6"
-tokio-codec = "0.1"
-tokio-io = "0.1"
-tokio-openssl = { version = "0.2", optional = true }
-tokio-tcp = "0.1"
-tokio-tls = { version = "0.1", optional = true }
+tokio-codec = "0.2.0-alpha.6"
+tokio-io = { version = "0.2.0-alpha.6", features = ["util"] }
+tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
+tokio-net = { version = "0.2.0-alpha.6", features = ["tcp"] }
+tokio-tls = { version = "0.3.0-alpha.6", optional = true }
 url = "1"
-websocket-codec = { version = "0.1" }
+websocket-codec = "0.2.0-alpha.6"
 
 [dev-dependencies]
 structopt = "0.2"
-tokio-core = "0.1"
-tokio-timer = "0.2"
+tokio = "0.2.0-alpha.6"
 
 [features]
 default = ["ssl-native-tls"]

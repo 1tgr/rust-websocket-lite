@@ -3,28 +3,20 @@
 //
 // This example code is copyright (c) 2014-2015 Cyderize
 
-extern crate futures;
-extern crate tokio_core;
-extern crate websocket_lite;
-
 use std::io::{self, Write};
 
-use futures::{Future, IntoFuture};
-use futures::future::{self, Loop};
-use futures::sink::Sink;
-use futures::stream::Stream;
-use tokio_core::reactor::Core;
-use websocket_lite::{ClientBuilder, Error, Message, Opcode, Result};
+use tokio::prelude::*;
+use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let addr = "ws://127.0.0.1:9001";
     let agent = "rust-websocket-lite";
-    let mut core = Core::new()?;
 
     println!("Using fuzzingserver {}", addr);
     println!("Using agent {}", agent);
 
-    let case_count = core.run(get_case_count(addr))?;
+    let case_count = get_case_count(addr).await?;
     println!("We will be running {} test cases!", case_count);
 
     println!("Running test suite...");
@@ -36,85 +28,67 @@ fn main() -> Result<()> {
             agent = agent
         );
 
-        let test_case = ClientBuilder::new(&url)
-            .map_err(Into::into)
-            .into_future()
-            .and_then(|builder| builder.async_connect_insecure())
-            .and_then(|duplex| {
-                let stdout = io::stdout();
-                let mut stdout = stdout.lock();
-                write!(stdout, "Executing test case: {}/{}\r", case_id, case_count)?;
-                stdout.flush()?;
-                Ok(duplex)
-            })
-            .and_then(move |duplex| {
-                future::loop_fn(duplex, |stream| {
-                    stream
-                        .into_future()
-                        .or_else(|(_err, stream)| stream.send(Message::close(None)).map(|s| (None, s)))
-                        .and_then(|(msg, stream)| -> Box<Future<Item = _, Error = _>> {
-                            let msg = if let Some(msg) = msg {
-                                msg
-                            } else {
-                                return Box::new(future::ok(Loop::Break(())));
-                            };
+        let builder = ClientBuilder::new(&url)?;
+        let mut stream_mut = builder.async_connect_insecure().await?;
 
-                            match msg.opcode() {
-                                Opcode::Text | Opcode::Binary => {
-                                    Box::new(stream.send(msg).map(|stream| Loop::Continue(stream)))
-                                }
+        {
+            let stdout = io::stdout();
+            let mut stdout = stdout.lock();
+            write!(stdout, "Executing test case: {}/{}\r", case_id, case_count)?;
+            stdout.flush()?;
+        }
 
-                                Opcode::Ping => Box::new(
-                                    stream
-                                        .send(Message::pong(msg.into_data()))
-                                        .map(|stream| Loop::Continue(stream)),
-                                ),
+        loop {
+            let (msg, mut stream) = stream_mut.into_future().await;
 
-                                Opcode::Close => Box::new(stream.send(Message::close(None)).map(|_| Loop::Break(()))),
-                                Opcode::Pong => Box::new(future::ok(Loop::Continue(stream))),
-                            }
-                        })
-                })
-            });
+            let msg = match msg {
+                Some(Ok(msg)) => msg,
+                Some(Err(_err)) => {
+                    stream.send(Message::close(None)).await?;
+                    break;
+                }
+                None => {
+                    break;
+                }
+            };
 
-        if let Err(err) = core.run(test_case) {
-            println!("Test case {} ended with an error: {}", case_id, err);
+            match msg.opcode() {
+                Opcode::Text | Opcode::Binary => stream.send(msg).await?,
+                Opcode::Ping => stream.send(Message::pong(msg.into_data())).await?,
+                Opcode::Close => stream.send(Message::close(None)).await?,
+                Opcode::Pong => (),
+            }
+
+            stream_mut = stream;
         }
     }
 
-    core.run(update_reports(addr, agent))?;
+    update_reports(addr, agent).await?;
     println!("Test suite finished!");
     Ok(())
 }
 
-fn get_case_count(addr: &str) -> impl Future<Item = usize, Error = Error> {
+async fn get_case_count(addr: &str) -> Result<usize> {
     let url = format!("{}/getCaseCount", addr);
-    ClientBuilder::new(&url)
-        .map_err(Into::into)
-        .into_future()
-        .and_then(|builder| builder.async_connect_insecure())
-        .and_then(|s| s.into_future().map_err(|e| e.0))
-        .and_then(|(msg, _)| {
-            if let Some(msg) = msg {
-                if let Some(text) = msg.as_text() {
-                    return Ok(text.parse()?);
-                }
-            }
+    let builder = ClientBuilder::new(&url)?;
+    let s = builder.async_connect_insecure().await?;
+    let (msg, _s) = s.into_future().await;
+    if let Some(msg) = msg {
+        if let Some(text) = msg?.as_text() {
+            return Ok(text.parse()?);
+        }
+    }
 
-            Err("response not recognised".to_owned().into())
-        })
+    Err("response not recognised".to_owned().into())
 }
 
-fn update_reports(addr: &str, agent: &str) -> impl Future<Item = (), Error = Error> {
+async fn update_reports(addr: &str, agent: &str) -> Result<()> {
     let url = format!("{addr}/updateReports?agent={agent}", addr = addr, agent = agent);
-    future::ok(())
-        .and_then(move |()| {
-            println!("Updating reports...");
-            ClientBuilder::new(&url).map_err(Into::into)
-        })
-        .and_then(|builder| builder.async_connect_insecure())
-        .and_then(|sink| sink.send(Message::close(None)))
-        .map(|_| {
-            println!("Reports updated.");
-        })
+    println!("Updating reports...");
+
+    let builder = ClientBuilder::new(&url)?;
+    let mut sink = builder.async_connect_insecure().await?;
+    sink.send(Message::close(None)).await?;
+    println!("Reports updated.");
+    Ok(())
 }

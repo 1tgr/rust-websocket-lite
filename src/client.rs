@@ -5,18 +5,16 @@ use std::result;
 use std::str;
 
 use base64;
-use futures::{Future, Stream};
-use futures::future::{self, Either, IntoFuture};
+use futures::StreamExt;
 use rand;
 use tokio_codec::{Decoder, Encoder, Framed};
-use tokio_io::{self, AsyncRead, AsyncWrite};
-use tokio_tcp;
+use tokio_io::{self, AsyncRead, AsyncWrite, AsyncWriteExt};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
-use crate::{AsyncClient, AsyncNetworkStream, Client, Error, MessageCodec, NetworkStream, Result};
 use crate::ssl;
 use crate::sync;
+use crate::{AsyncClient, AsyncNetworkStream, Client, MessageCodec, NetworkStream, Result};
 
 fn replace_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(
     framed: Framed<T, C1>,
@@ -117,11 +115,10 @@ impl ClientBuilder {
     ///
     /// `wss://...` URLs are not supported by this method. Use `async_connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
-    pub fn async_connect_insecure(self) -> impl Future<Item = AsyncClient<tokio_tcp::TcpStream>, Error = Error> {
-        resolve(&self.url)
-            .into_future()
-            .and_then(|addr| tokio_tcp::TcpStream::connect(&addr).map_err(Into::into))
-            .and_then(|stream| self.async_connect_on(stream))
+    pub async fn async_connect_insecure(self) -> Result<AsyncClient<tokio_net::tcp::TcpStream>> {
+        let addr = resolve(&self.url)?;
+        let stream = tokio_net::tcp::TcpStream::connect(&addr).await?;
+        Ok(self.async_connect_on(stream).await?)
     }
 
     /// Establishes a connection to the WebSocket server.
@@ -135,40 +132,34 @@ impl ClientBuilder {
     }
 
     /// Establishes a connection to the WebSocket server.
-    pub fn async_connect(
+    pub async fn async_connect(
         self,
-    ) -> impl Future<Item = AsyncClient<Box<AsyncNetworkStream + Sync + Send + 'static>>, Error = Error> {
-        resolve(&self.url)
-            .into_future()
-            .and_then(|addr| tokio_tcp::TcpStream::connect(&addr).map_err(Into::into))
-            .and_then(move |stream| {
-                if self.url.scheme() == "wss" {
-                    let domain = self.url.domain().unwrap_or("").to_owned();
-                    Either::A(ssl::async_wrap(domain, stream).map(move |stream| {
-                        let b: Box<AsyncNetworkStream + Sync + Send + 'static> = Box::new(stream);
-                        (b, self)
-                    }))
-                } else {
-                    let b: Box<AsyncNetworkStream + Sync + Send + 'static> = Box::new(stream);
-                    Either::B(future::ok((b, self)))
-                }
-            })
-            .and_then(|(stream, this)| this.async_connect_on(stream))
+    ) -> Result<AsyncClient<Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static>>> {
+        let addr = resolve(&self.url)?;
+        let stream = tokio_net::tcp::TcpStream::connect(&addr).await?;
+
+        let stream: Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static> = if self.url.scheme() == "wss" {
+            let domain = self.url.domain().unwrap_or("").to_owned();
+            let stream = ssl::async_wrap(domain, stream).await?;
+            Box::new(stream)
+        } else {
+            Box::new(stream)
+        };
+
+        self.async_connect_on(stream).await
     }
 
     /// Establishes a connection to the WebSocket server.
-    pub fn connect(self) -> Result<Client<Box<NetworkStream + Sync + Send + 'static>>> {
+    pub fn connect(self) -> Result<Client<Box<dyn NetworkStream + Sync + Send + 'static>>> {
         let addr = resolve(&self.url)?;
         let stream = net::TcpStream::connect(&addr)?;
 
-        let stream = if self.url.scheme() == "wss" {
+        let stream: Box<dyn NetworkStream + Sync + Send + 'static> = if self.url.scheme() == "wss" {
             let domain = self.url.domain().unwrap_or("");
             let stream = ssl::wrap(domain, stream)?;
-            let b: Box<NetworkStream + Sync + Send + 'static> = Box::new(stream);
-            b
+            Box::new(stream)
         } else {
-            let b: Box<NetworkStream + Sync + Send + 'static> = Box::new(stream);
-            b
+            Box::new(stream)
         };
 
         self.connect_on(stream)
@@ -178,20 +169,16 @@ impl ClientBuilder {
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
-    pub fn async_connect_on<S: AsyncRead + AsyncWrite>(
-        self,
-        stream: S,
-    ) -> impl Future<Item = AsyncClient<S>, Error = Error> {
+    pub async fn async_connect_on<S: AsyncRead + AsyncWrite + Unpin>(self, mut stream: S) -> Result<AsyncClient<S>> {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
-        tokio_io::io::write_all(stream, build_request(&self.url, key))
-            .map_err(Into::into)
-            .and_then(move |(stream, _request)| upgrade_codec.framed(stream).into_future().map_err(|(e, _framed)| e))
-            .and_then(move |(opt, framed)| {
-                opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
-                Ok(replace_codec(framed, MessageCodec::new()))
-            })
+        let request = build_request(&self.url, key);
+        AsyncWriteExt::write_all(&mut stream, request.as_bytes()).await?;
+
+        let (opt, framed) = upgrade_codec.framed(stream).into_future().await;
+        opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())??;
+        Ok(replace_codec(framed, MessageCodec::new()))
     }
 
     /// Takes over an already established stream and uses it to send and receive WebSocket messages.
@@ -214,11 +201,13 @@ impl ClientBuilder {
 mod tests {
     use std::fmt;
     use std::io::{self, Cursor, Read, Write};
+    use std::pin::Pin;
     use std::result;
     use std::str;
+    use std::task::{Context, Poll};
 
     use base64;
-    use futures::{Future, Poll};
+    use tokio::runtime::Runtime;
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use crate::ClientBuilder;
@@ -258,16 +247,28 @@ mod tests {
             self.1.write_all(buf)
         }
 
-        fn write_fmt(&mut self, fmt: fmt::Arguments) -> io::Result<()> {
+        fn write_fmt(&mut self, fmt: fmt::Arguments<'_>) -> io::Result<()> {
             self.1.write_fmt(fmt)
         }
     }
 
-    impl<R: AsyncRead, W> AsyncRead for ReadWritePair<R, W> {}
+    impl<R: AsyncRead + Unpin, W: Unpin> AsyncRead for ReadWritePair<R, W> {
+        fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.get_mut().0).poll_read(cx, buf)
+        }
+    }
 
-    impl<R, W: AsyncWrite> AsyncWrite for ReadWritePair<R, W> {
-        fn shutdown(&mut self) -> Poll<(), io::Error> {
-            self.1.shutdown()
+    impl<R: Unpin, W: AsyncWrite + Unpin> AsyncWrite for ReadWritePair<R, W> {
+        fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.get_mut().1).poll_write(cx, buf)
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.get_mut().1).poll_flush(cx)
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.get_mut().1).poll_shutdown(cx)
         }
     }
 
@@ -288,13 +289,16 @@ mod tests {
     #[test]
     fn can_async_connect_on() -> Result<()> {
         let mut input = Cursor::new(&RESPONSE[..]);
-        let mut output = Cursor::new(Vec::new());
-        ClientBuilder::new("ws://localhost:8000/stream?query")?
-            .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
-            .async_connect_on(ReadWritePair(&mut input, &mut output))
-            .wait()?;
+        let mut output = Vec::new();
 
-        assert_eq!(REQUEST, str::from_utf8(&output.into_inner())?);
+        Runtime::new()?.block_on(async {
+            ClientBuilder::new("ws://localhost:8000/stream?query")?
+                .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
+                .async_connect_on(ReadWritePair(&mut input, &mut output))
+                .await
+        })?;
+
+        assert_eq!(REQUEST, str::from_utf8(&output)?);
         Ok(())
     }
 
@@ -302,6 +306,7 @@ mod tests {
     fn can_connect_on() -> Result<()> {
         let mut input = Cursor::new(&RESPONSE[..]);
         let mut output = Cursor::new(Vec::new());
+
         ClientBuilder::new("ws://localhost:8000/stream?query")?
             .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
             .connect_on(ReadWritePair(&mut input, &mut output))?;

@@ -6,28 +6,22 @@ mod inner {
     use std::fmt::Debug;
     use std::io::{Read, Write};
 
-    use futures::{Future, IntoFuture};
     use native_tls::TlsConnector;
     use tokio_io::{AsyncRead, AsyncWrite};
-    use tokio_tls::TlsConnectorExt;
 
-    use crate::{Error, Result};
+    use crate::Result;
 
-    pub fn async_wrap<S: AsyncRead + AsyncWrite>(
+    pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(
         domain: String,
         stream: S,
-    ) -> impl Future<Item = ::tokio_tls::TlsStream<S>, Error = Error> {
-        TlsConnector::builder()
-            .and_then(|builder| builder.build())
-            .map_err(Into::into)
-            .into_future()
-            .and_then(move |cx| cx.connect_async(&domain, stream).map_err(Into::into))
+    ) -> Result<::tokio_tls::TlsStream<S>> {
+        let builder = TlsConnector::builder();
+        let cx = builder.build()?;
+        Ok(tokio_tls::TlsConnector::from(cx).connect(&domain, stream).await?)
     }
 
     pub fn wrap<S: Read + Write + Debug + 'static>(domain: &str, stream: S) -> Result<::native_tls::TlsStream<S>> {
-        use native_tls::TlsConnector;
-
-        let builder = TlsConnector::builder()?;
+        let builder = TlsConnector::builder();
         let cx = builder.build()?;
         Ok(cx.connect(domain, stream)?)
     }

@@ -3,8 +3,6 @@
 //
 // This example code is copyright (c) 2014-2015 Cyderize
 
-extern crate websocket_lite;
-
 use std::io::{self, Write};
 
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};

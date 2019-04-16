@@ -1,4 +1,5 @@
 #![deny(missing_docs)]
+#![deny(rust_2018_idioms)]
 #![deny(warnings)]
 #![cfg_attr(feature = "nightly", feature(test))]
 #![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
@@ -31,20 +32,12 @@ use tokio_io::{AsyncRead, AsyncWrite};
 /// Used by [`AsyncClient`](type.AsyncClient.html) to represent types that are `AsyncRead` and `AsyncWrite`.
 pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
 
-impl<S> AsyncNetworkStream for S
-where
-    S: AsyncRead + AsyncWrite,
-{
-}
+impl<S> AsyncNetworkStream for S where S: AsyncRead + AsyncWrite {}
 
 /// Used by [`Client`](type.Client.html) to represent types that are `Read` and `Write`.
 pub trait NetworkStream: Read + Write {}
 
-impl<S> NetworkStream for S
-where
-    S: Read + Write,
-{
-}
+impl<S> NetworkStream for S where S: Read + Write {}
 
 /// Exposes a `Sink` and a `Stream` for sending and receiving WebSocket messages asynchronously.
 pub type AsyncClient<S> = Framed<S, MessageCodec>;

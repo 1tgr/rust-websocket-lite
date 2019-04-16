@@ -1,56 +1,15 @@
 #![deny(warnings)]
 
-extern crate bytes;
-extern crate futures;
-extern crate structopt;
-extern crate tokio_core;
-extern crate tokio_timer;
-extern crate url;
-extern crate websocket_lite;
+use std::io::{self, Write};
+use std::time::Duration;
 
-use std::io::{self, Read, Write};
-use std::mem;
-use std::result;
-use std::time::{Duration, Instant};
-
-use bytes::{Bytes, BytesMut};
-use futures::{Async, Future, IntoFuture, Sink, Stream};
-use futures::future::{self, Either, Loop};
+use futures::future;
 use structopt::StructOpt;
-use tokio_core::reactor::Core;
-use tokio_timer::Delay;
+use tokio::io::BufReader;
+use tokio::prelude::*;
+use tokio::timer;
 use url::Url;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
-
-struct Stdin(Bytes);
-
-impl Stdin {
-    pub fn new() -> Self {
-        Stdin(Bytes::new())
-    }
-}
-
-impl Stream for Stdin {
-    type Item = Bytes;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> result::Result<Async<Option<Bytes>>, io::Error> {
-        let buffer = mem::replace(&mut self.0, Bytes::new());
-        let mut buffer = BytesMut::from(buffer);
-        buffer.resize(4096, 0);
-
-        let n = io::stdin().read(&mut *buffer)?;
-        buffer.truncate(n);
-
-        if n == 0 {
-            Ok(Async::Ready(None))
-        } else {
-            let buffer = buffer.freeze();
-            mem::replace(&mut self.0, buffer.clone());
-            Ok(Async::Ready(Some(buffer)))
-        }
-    }
-}
 
 fn parse_secs(s: &str) -> Result<Duration> {
     let n = s.parse()?;
@@ -69,63 +28,64 @@ struct Opt {
     ws_url: Url,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let Opt { eof_wait, ws_url } = Opt::from_args();
+    let client = ClientBuilder::from_url(ws_url).async_connect().await?;
+    let (sink, stream) = client.split();
 
-    let f = ClientBuilder::from_url(ws_url).async_connect().and_then(move |client| {
-        let (sink, stream) = client.split();
+    let send_loop = async {
+        let mut stream_mut = BufReader::new(tokio::io::stdin()).lines();
+        let mut sink = sink;
 
-        let send_loop = future::loop_fn((Stdin::new(), sink), move |(stream, sink)| {
-            stream
-                .into_future()
-                .map_err(|(e, _stream)| Into::into(e))
-                .and_then(move |(data, stream)| {
-                    if let Some(data) = data {
-                        Either::A(
-                            Message::new(Opcode::Text, data)
-                                .map_err(Into::into)
-                                .into_future()
-                                .and_then(|message| sink.send(message))
-                                .map(|sink| Loop::Continue((stream, sink))),
-                        )
-                    } else {
-                        Either::B(
-                            Delay::new(Instant::now() + eof_wait)
-                                .map_err(Into::into)
-                                .and_then(|()| future::ok(Loop::Break(()))),
-                        )
-                    }
-                })
-        });
+        loop {
+            let (data, stream) = stream_mut.into_future().await;
 
-        let recv_loop = future::loop_fn(stream, |stream| {
-            stream
-                .into_future()
-                .map_err(|(e, _stream)| e)
-                .and_then(|(message, client)| {
-                    let message = if let Some(message) = message {
-                        message
-                    } else {
-                        return Ok(Loop::Break(()));
-                    };
+            if let Some(data) = data {
+                let message = Message::new(Opcode::Text, data?)?;
+                sink.send(message).await?;
+            } else {
+                break;
+            }
 
-                    if let Some(s) = message.as_text() {
-                        println!("{}", s);
-                    } else {
-                        let stdout = io::stdout();
-                        let mut stdout = stdout.lock();
-                        stdout.write_all(message.data())?;
-                        stdout.flush()?;
-                    };
+            stream_mut = stream;
+        }
 
-                    Ok(Loop::Continue(client))
-                })
-        });
+        timer::delay_for(eof_wait).await;
+        Ok(()) as Result<()>
+    };
 
-        Future::select(send_loop, recv_loop)
-            .map(|(value, _other)| value)
-            .map_err(|(e, _other)| e)
-    });
+    let recv_loop = async {
+        let mut stream_mut = stream;
 
-    Core::new()?.run(f)
+        loop {
+            let (message, stream) = stream_mut.into_future().await;
+
+            let message = if let Some(message) = message {
+                message?
+            } else {
+                break;
+            };
+
+            if let Some(s) = message.as_text() {
+                println!("{}", s);
+            } else {
+                let stdout = io::stdout();
+                let mut stdout = stdout.lock();
+                stdout.write_all(message.data())?;
+                stdout.flush()?;
+            }
+
+            stream_mut = stream;
+        }
+
+        Ok(()) as Result<()>
+    };
+
+    future::select(send_loop.boxed(), recv_loop.boxed())
+        .await
+        .into_inner()
+        .0?;
+
+    Ok(())
 }
