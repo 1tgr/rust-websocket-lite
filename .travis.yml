@@ -1,0 +1,11 @@
+language: minimal
+
+services:
+  - docker
+
+before_install:
+  - docker build --target deps -t 1tgr/websocket-lite-deps .
+
+script:
+  - docker build --target app -t 1tgr/websocket-lite .
+  - docker-compose run test

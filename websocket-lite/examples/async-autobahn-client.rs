@@ -5,25 +5,35 @@
 
 use std::io::{self, Write};
 
+use structopt::StructOpt;
 use tokio::prelude::*;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
+use url::Url;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "async-autobahn-client", about = "Client for the Autobahn fuzzing server")]
+struct Opt {
+    /// websocket url. ex. ws://localhost:9001/
+    #[structopt(parse(try_from_str = "Url::parse"))]
+    ws_url: Url,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let addr = "ws://127.0.0.1:9001";
+    let Opt { ws_url } = Opt::from_args();
     let agent = "rust-websocket-lite";
 
-    println!("Using fuzzingserver {}", addr);
+    println!("Using fuzzingserver {}", ws_url);
     println!("Using agent {}", agent);
 
-    let case_count = get_case_count(addr).await?;
+    let case_count = get_case_count(&ws_url).await?;
     println!("We will be running {} test cases!", case_count);
 
     println!("Running test suite...");
-    for case_id in 1..(case_count + 1) {
+    for case_id in 1..=case_count {
         let url = format!(
-            "{addr}/runCase?case={case_id}&agent={agent}",
-            addr = addr,
+            "{ws_url}runCase?case={case_id}&agent={agent}",
+            ws_url = ws_url,
             case_id = case_id,
             agent = agent
         );
@@ -44,7 +54,7 @@ async fn main() -> Result<()> {
             let msg = match msg {
                 Some(Ok(msg)) => msg,
                 Some(Err(_err)) => {
-                    stream.send(Message::close(None)).await?;
+                    let _ = stream.send(Message::close(None)).await;
                     break;
                 }
                 None => {
@@ -63,13 +73,13 @@ async fn main() -> Result<()> {
         }
     }
 
-    update_reports(addr, agent).await?;
+    update_reports(&ws_url, agent).await?;
     println!("Test suite finished!");
     Ok(())
 }
 
-async fn get_case_count(addr: &str) -> Result<usize> {
-    let url = format!("{}/getCaseCount", addr);
+async fn get_case_count(ws_url: &Url) -> Result<usize> {
+    let url = format!("{}getCaseCount", ws_url);
     let builder = ClientBuilder::new(&url)?;
     let s = builder.async_connect_insecure().await?;
     let (msg, _s) = s.into_future().await;
@@ -82,8 +92,8 @@ async fn get_case_count(addr: &str) -> Result<usize> {
     Err("response not recognised".to_owned().into())
 }
 
-async fn update_reports(addr: &str, agent: &str) -> Result<()> {
-    let url = format!("{addr}/updateReports?agent={agent}", addr = addr, agent = agent);
+async fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
+    let url = format!("{ws_url}updateReports?agent={agent}", ws_url = ws_url, agent = agent);
     println!("Updating reports...");
 
     let builder = ClientBuilder::new(&url)?;

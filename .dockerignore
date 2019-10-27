@@ -1,0 +1,9 @@
+.dockerignore
+.git/
+docker-compose.yml
+Dockerfile
+LICENSE
+README.md
+reports/
+target/
+test.sh

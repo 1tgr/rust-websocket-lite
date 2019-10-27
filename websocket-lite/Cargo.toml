@@ -7,6 +7,21 @@ repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 edition = "2018"
 
+[lib]
+path = "src/lib.rs"
+
+[[example]]
+name = "async-autobahn-client"
+path = "examples/async-autobahn-client.rs"
+
+[[example]]
+name = "autobahn-client"
+path = "examples/autobahn-client.rs"
+
+[[example]]
+name = "wsdump"
+path = "examples/wsdump.rs"
+
 [dependencies]
 base64 = "0.9"
 bytes = "0.4"

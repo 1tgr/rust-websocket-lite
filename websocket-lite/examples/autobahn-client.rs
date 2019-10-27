@@ -5,20 +5,30 @@
 
 use std::io::{self, Write};
 
+use structopt::StructOpt;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
+use url::Url;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "async-autobahn-client", about = "Client for the Autobahn fuzzing server")]
+struct Opt {
+    /// websocket url. ex. ws://localhost:9001/
+    #[structopt(parse(try_from_str = "Url::parse"))]
+    ws_url: Url,
+}
 
 fn main() -> Result<()> {
-    let addr = "ws://127.0.0.1:9001";
+    let Opt { ws_url } = Opt::from_args();
     let agent = "rust-websocket-lite";
-    println!("Using fuzzingserver {}", addr);
+    println!("Using fuzzingserver {}", ws_url);
     println!("Using agent {}", agent);
     println!("Running test suite...");
 
-    let case_count = get_case_count(addr)?;
-    for case_id in 1..(case_count + 1) {
+    let case_count = get_case_count(&ws_url)?;
+    for case_id in 1..=case_count {
         let url = format!(
-            "{addr}/runCase?case={case_id}&agent={agent}",
-            addr = addr,
+            "{ws_url}runCase?case={case_id}&agent={agent}",
+            ws_url = ws_url,
             case_id = case_id,
             agent = agent
         );
@@ -55,11 +65,11 @@ fn main() -> Result<()> {
         }
     }
 
-    update_reports(addr, agent)
+    update_reports(&ws_url, agent)
 }
 
-fn get_case_count(addr: &str) -> Result<usize> {
-    let url = format!("{addr}/getCaseCount", addr = addr);
+fn get_case_count(ws_url: &Url) -> Result<usize> {
+    let url = format!("{ws_url}getCaseCount", ws_url = ws_url);
     let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
     let mut count = 0;
 
@@ -90,8 +100,8 @@ fn get_case_count(addr: &str) -> Result<usize> {
     Ok(count)
 }
 
-fn update_reports(addr: &str, agent: &str) -> Result<()> {
-    let url = format!("{addr}/updateReports?agent={agent}", addr = addr, agent = agent);
+fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
+    let url = format!("{ws_url}updateReports?agent={agent}", ws_url = ws_url, agent = agent);
     let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
     println!("Updating reports...");
 

@@ -1,0 +1,17 @@
+version: '3.2'
+
+services:
+  fuzzingserver:
+    image: crossbario/autobahn-testsuite:0.8.0
+    volumes:
+      - ./config:/config:ro
+      - ./reports:/reports
+
+  test:
+    image: 1tgr/websocket-lite
+    command: ./test.sh
+    depends_on:
+      - fuzzingserver
+    volumes:
+      - ./reports:/reports:ro
+      - ./test.sh:/app/test.sh

@@ -7,6 +7,9 @@ repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 edition = "2018"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 base64 = "0.9"
 byteorder = "1"
@@ -19,6 +22,3 @@ tokio-codec = "0.2.0-alpha.6"
 
 [dev-dependencies]
 quickcheck = "0.7"
-structopt = "0.2"
-tokio-core = "0.1"
-

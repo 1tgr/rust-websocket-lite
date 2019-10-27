@@ -1,5 +1,7 @@
 # websocket-lite and websocket-codec
 
+[![Build Status](https://travis-ci.org/1tgr/rust-websocket-lite.svg?branch=master)](https://travis-ci.org/1tgr/rust-websocket-lite)
+
 This repo contains two crates:
 - websocket-lite, a fast, low-overhead WebSocket client 
 - websocket-codec, a Tokio codec implementation of the WebSocket protocol
