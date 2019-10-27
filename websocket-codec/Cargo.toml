@@ -3,7 +3,7 @@ name = "websocket-codec"
 description = "A Tokio codec for the websocket protocol"
 version = "0.2.0-alpha.6"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
-repository = "https://github.com/1tgr/rust-websocket-codec"
+repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 edition = "2018"
 
