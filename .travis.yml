@@ -3,9 +3,17 @@ language: minimal
 services:
   - docker
 
+cache:
+  directories:
+    - cache/docker_images
+
 before_install:
+  - docker load -i cache/docker_images/images.tar || true
   - docker build --target deps -t 1tgr/websocket-lite-deps .
 
 script:
   - docker build --target app -t 1tgr/websocket-lite .
   - docker-compose run test
+
+before_cache:
+  - docker save -o cache/docker_images/images.tar $(docker images -a -q)

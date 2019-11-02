@@ -1,5 +1,6 @@
 .dockerignore
 .git/
+cache/
 docker-compose.yml
 Dockerfile
 LICENSE
