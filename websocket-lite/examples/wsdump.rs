@@ -67,13 +67,15 @@ async fn main() -> Result<()> {
                 break;
             };
 
-            if let Some(s) = message.as_text() {
-                println!("{}", s);
-            } else {
-                let stdout = io::stdout();
-                let mut stdout = stdout.lock();
-                stdout.write_all(message.data())?;
-                stdout.flush()?;
+            if let Opcode::Text | Opcode::Binary = message.opcode() {
+                if let Some(s) = message.as_text() {
+                    println!("{}", s);
+                } else {
+                    let stdout = io::stdout();
+                    let mut stdout = stdout.lock();
+                    stdout.write_all(message.data())?;
+                    stdout.flush()?;
+                }
             }
 
             stream_mut = stream;

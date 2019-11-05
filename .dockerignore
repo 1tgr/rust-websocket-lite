@@ -1,10 +1,13 @@
 .dockerignore
 .git/
+.travis.yml
 cache/
 docker-compose.yml
 Dockerfile
+hello_world_server.py
 LICENSE
 README.md
 reports/
+requirements.txt
 target/
 test.sh

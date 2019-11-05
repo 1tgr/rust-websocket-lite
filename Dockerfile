@@ -38,5 +38,6 @@ WORKDIR /app
 COPY --from=build \
     /build/target/release/examples/async-autobahn-client \
     /build/target/release/examples/autobahn-client \
+    /build/target/release/examples/hello-world-client \
     /build/target/release/examples/wsdump \
     ./

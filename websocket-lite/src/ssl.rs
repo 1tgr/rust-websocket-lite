@@ -6,10 +6,10 @@ mod inner {
     use std::fmt::Debug;
     use std::io::{Read, Write};
 
-    use native_tls::TlsConnector;
+    use native_tls::{HandshakeError, TlsConnector};
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    use crate::Result;
+    use crate::{Error, Result};
 
     pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(
         domain: String,
@@ -23,7 +23,13 @@ mod inner {
     pub fn wrap<S: Read + Write + Debug + 'static>(domain: &str, stream: S) -> Result<::native_tls::TlsStream<S>> {
         let builder = TlsConnector::builder();
         let cx = builder.build()?;
-        Ok(cx.connect(domain, stream)?)
+        Ok(cx.connect(domain, stream).map_err(|e| {
+            if let HandshakeError::Failure(e) = e {
+                Error::from(e)
+            } else {
+                Error::from(e.to_string())
+            }
+        })?)
     }
 }
 
