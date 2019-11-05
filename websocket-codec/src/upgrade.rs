@@ -41,7 +41,8 @@ fn validate(expected_ws_accept: &[u8; sha1::DIGEST_LENGTH], data: &[u8]) -> Resu
             "server responded with incorrect Sec-WebSocket-Accept header: expected {expected}, got {actual}",
             expected = Base64Display::standard(expected_ws_accept),
             actual = Base64Display::standard(&ws_accept)
-        ).into());
+        )
+        .into());
     }
 
     Ok(Some(response_len))

@@ -5,9 +5,9 @@ use std::str::{self, Utf8Error};
 use bytes::{BufMut, Bytes, BytesMut};
 use tokio_codec::{Decoder, Encoder};
 
-use crate::{Error, Opcode, Result};
 use crate::frame::FrameHeader;
 use crate::mask::{Mask, Masker};
+use crate::{Error, Opcode, Result};
 
 /// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -157,7 +157,8 @@ impl Decoder for MessageCodec {
 
             // The buffer contains the frame header and all of the data. We can parse it and return Ok(Some(...)).
 
-            let data = src.split_to(data_range.end)
+            let data = src
+                .split_to(data_range.end)
                 .freeze()
                 .slice(data_range.start, data_range.end);
 
@@ -228,10 +229,10 @@ mod tests {
     use bytes::{BufMut, BytesMut};
     use tokio_codec::{Decoder, Encoder};
 
-    use crate::{Message, MessageCodec};
     use crate::frame::FrameHeader;
     use crate::mask::Masker;
     use crate::opcode::Opcode;
+    use crate::{Message, MessageCodec};
 
     fn decode<D: Decoder>(decoder: &mut D, mut src: &[u8]) -> Result<D::Item, D::Error> {
         let mut decoder_buf = BytesMut::new();

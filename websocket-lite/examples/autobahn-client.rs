@@ -6,8 +6,8 @@
 use std::io::{self, Write};
 
 use structopt::StructOpt;
-use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 use url::Url;
+use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "async-autobahn-client", about = "Client for the Autobahn fuzzing server")]

@@ -5,8 +5,8 @@ use std::result;
 use byteorder::{BigEndian, NativeEndian, ReadBytesExt};
 use bytes::{BufMut, BytesMut};
 
-use crate::{Opcode, Result};
 use crate::mask::Mask;
+use crate::{Opcode, Result};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrameHeader {
@@ -81,7 +81,8 @@ impl FrameHeader {
                 return Err(format!(
                     "control frames must be shorter than 126 bytes ({} bytes is too long)",
                     len
-                ).into());
+                )
+                .into());
             }
         }
 

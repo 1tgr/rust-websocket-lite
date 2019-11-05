@@ -181,8 +181,8 @@ mod benches {
     use take_mut;
     use test::Bencher;
 
-    use crate::Masker;
     use crate::tests::DATA;
+    use crate::Masker;
 
     #[bench]
     fn mask_not_shared(b: &mut Bencher) {
