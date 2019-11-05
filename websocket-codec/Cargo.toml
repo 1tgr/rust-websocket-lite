@@ -21,4 +21,4 @@ take_mut = "0.2"
 tokio-codec = "0.2.0-alpha.6"
 
 [dev-dependencies]
-quickcheck = "0.7"
+quickcheck = "0.9"
