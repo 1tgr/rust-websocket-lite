@@ -11,7 +11,7 @@ edition = "2018"
 path = "src/lib.rs"
 
 [dependencies]
-base64 = "0.9"
+base64 = "0.11"
 byteorder = "1"
 bytes = "0.4"
 httparse = "1"
