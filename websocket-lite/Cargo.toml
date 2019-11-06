@@ -42,7 +42,7 @@ url = "2"
 websocket-codec = { version = "0.2.1-alpha.6", path = "../websocket-codec" }
 
 [dev-dependencies]
-structopt = "0.2"
+structopt = "0.3"
 tokio = "0.2.0-alpha.6"
 
 [features]

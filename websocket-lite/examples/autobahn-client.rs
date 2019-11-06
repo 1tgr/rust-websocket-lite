@@ -13,7 +13,7 @@ use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 #[structopt(name = "async-autobahn-client", about = "Client for the Autobahn fuzzing server")]
 struct Opt {
     /// websocket url. ex. ws://localhost:9001/
-    #[structopt(parse(try_from_str = "Url::parse"))]
+    #[structopt(parse(try_from_str = Url::parse))]
     ws_url: Url,
 }
 
