@@ -1,6 +1,6 @@
 use std::fmt;
 use std::io::{Read, Write};
-use std::net::{self, SocketAddr, ToSocketAddrs};
+use std::net::{self, SocketAddr};
 use std::result;
 use std::str;
 
@@ -35,8 +35,10 @@ macro_rules! writeok {
 }
 
 fn resolve(url: &Url) -> Result<SocketAddr> {
-    let mut addrs = url.to_socket_addrs()?;
-    addrs.next().ok_or_else(|| "can't resolve host".to_owned().into())
+    url.socket_addrs(|| None)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "can't resolve host".to_owned().into())
 }
 
 fn make_key(key: Option<[u8; 16]>, key_base64: &mut [u8; 24]) -> &str {
