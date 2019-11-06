@@ -20,11 +20,11 @@ fn parse_secs(s: &str) -> Result<Duration> {
 #[structopt(name = "wsdump", about = "WebSocket Simple Dump Tool")]
 struct Opt {
     /// wait time(second) after 'EOF' received.
-    #[structopt(long = "eof-wait", parse(try_from_str = "parse_secs"), default_value = "0")]
+    #[structopt(long = "eof-wait", parse(try_from_str = parse_secs), default_value = "0")]
     eof_wait: Duration,
 
     /// websocket url. ex. ws://echo.websocket.org/
-    #[structopt(parse(try_from_str = "Url::parse"))]
+    #[structopt(parse(try_from_str = Url::parse))]
     ws_url: Url,
 }
 
