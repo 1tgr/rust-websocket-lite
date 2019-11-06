@@ -12,8 +12,7 @@ before_install:
   - docker build --target deps -t 1tgr/websocket-lite-deps .
 
 script:
-  - docker build --target app -t 1tgr/websocket-lite .
-  - docker-compose up --exit-code-from test
+  - docker build --target app -t 1tgr/websocket-lite . && docker-compose up --exit-code-from test
 
 before_cache:
   - docker save -o cache/docker_images/images.tar $(docker images -a -q)
