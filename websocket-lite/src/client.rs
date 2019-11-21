@@ -285,7 +285,7 @@ mod tests {
     static RESPONSE: &'static str = "HTTP/1.1 101 Switching Protocols\r\n\
                                      Upgrade: websocket\r\n\
                                      Connection: Upgrade\r\n\
-                                     Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
+                                     sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
                                      \r\n";
 
     #[test]

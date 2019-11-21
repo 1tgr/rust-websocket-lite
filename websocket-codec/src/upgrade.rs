@@ -13,7 +13,7 @@ use crate::{Error, Result};
 fn header<'a, 'header: 'a>(headers: &'a [Header<'header>], name: &'a str) -> result::Result<&'header [u8], String> {
     let header = headers
         .iter()
-        .find(|header| header.name == name)
+        .find(|header| header.name.eq_ignore_ascii_case(name))
         .ok_or_else(|| format!("server didn't respond with {name} header", name = name))?;
 
     Ok(header.value)
