@@ -51,7 +51,7 @@ fn make_key(key: Option<[u8; 16]>, key_base64: &mut [u8; 24]) -> &str {
     str::from_utf8(key_base64).unwrap()
 }
 
-fn build_request(url: &Url, key: &str) -> String {
+fn build_request(url: &Url, key: &str, headers: &Vec<(String, String)>) -> String {
     let mut s = String::new();
     writeok!(s, "GET {path}", path = url.path());
     if let Some(query) = url.query() {
@@ -74,10 +74,13 @@ fn build_request(url: &Url, key: &str) -> String {
         "Upgrade: websocket\r\n\
          Connection: Upgrade\r\n\
          Sec-WebSocket-Key: {key}\r\n\
-         Sec-WebSocket-Version: 13\r\n\
-         \r\n",
+         Sec-WebSocket-Version: 13\r\n",
         key = key
     );
+    for (name, value) in headers.iter() {
+        writeok!(s, "{name}: {value}\r\n", name = name, value = value);
+    }
+    writeok!(s, "\r\n");
     s
 }
 
@@ -87,6 +90,7 @@ fn build_request(url: &Url, key: &str) -> String {
 pub struct ClientBuilder {
     url: Url,
     key: Option<[u8; 16]>,
+    headers: Vec<(String, String)>,
 }
 
 impl ClientBuilder {
@@ -101,7 +105,13 @@ impl ClientBuilder {
     ///
     /// This method never fails as the URL has already been parsed.
     pub fn from_url(url: Url) -> Self {
-        ClientBuilder { url, key: None }
+        ClientBuilder { url, key: None, headers: Vec::new() }
+    }
+
+    /// Adds an extra HTTP header for client
+    ///
+    pub fn add_header(&mut self, name: String, value: String) {
+        self.headers.push((name, value));
     }
 
     // Not pub - used by the tests
@@ -175,7 +185,7 @@ impl ClientBuilder {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
-        let request = build_request(&self.url, key);
+        let request = build_request(&self.url, key, &self.headers);
         AsyncWriteExt::write_all(&mut stream, request.as_bytes()).await?;
 
         let (opt, framed) = upgrade_codec.framed(stream).into_future().await;
@@ -191,7 +201,7 @@ impl ClientBuilder {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
-        stream.write_all(build_request(&self.url, key).as_ref())?;
+        stream.write_all(build_request(&self.url, key, &self.headers).as_ref())?;
 
         let mut framed = sync::Framed::new(stream, upgrade_codec);
         framed.receive()?.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
