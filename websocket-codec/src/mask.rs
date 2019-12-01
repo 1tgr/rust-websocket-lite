@@ -1,10 +1,9 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
-use std::mem;
-use std::slice;
+// use std::mem;
+// use std::slice;
 
-use bytes::{Bytes, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use rand;
-use take_mut;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Mask(u32);
@@ -27,6 +26,7 @@ impl From<Mask> for u32 {
     }
 }
 
+/*
 unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
     let size = mem::size_of::<T>();
     if size == 0 {
@@ -38,7 +38,7 @@ unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
         slice::from_raw_parts(data.as_ptr() as *const T, len1),
         &data[len1 * size..],
     )
-}
+}*/
 
 fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     for b in data {
@@ -49,6 +49,7 @@ fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     mask
 }
 
+/*
 fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
     assert_eq!(buf.len(), data.len());
 
@@ -58,21 +59,21 @@ fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
     }
 
     mask
-}
+}*/
 
 fn mask_aligned_in_place(data: &mut [u32], mask: u32) {
     for n in data {
         *n ^= mask;
     }
 }
-
+/*
 fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
     assert_eq!(buf.len(), data.len());
 
     for (dest, &src) in buf.into_iter().zip(data) {
         *dest = src ^ mask;
     }
-}
+}*/
 
 /// Masks data sent by a client, and unmasks data received by a server.
 pub struct Masker {
@@ -86,38 +87,15 @@ impl Masker {
 
     pub fn mask(&mut self, data: Bytes, mask: Mask) -> Bytes {
         let Mask(mask) = mask;
-        match data.try_mut() {
-            Ok(mut data) => {
-                {
-                    let (data1, data2, data3) = unsafe { data.align_to_mut() };
-                    let mask = mask_u8_in_place(data1, mask);
-                    mask_aligned_in_place(data2, mask);
-                    mask_u8_in_place(data3, mask);
-                }
+        let mut buff = BytesMut::with_capacity(data.len());
+        buff.put(data);
 
-                data.freeze()
-            }
+        let (data1, data2, data3) = unsafe { buff.align_to_mut() };
+        let mask = mask_u8_in_place(data1, mask);
+        mask_aligned_in_place(data2, mask);
+        mask_u8_in_place(data3, mask);
 
-            Err(data) => {
-                take_mut::take(&mut self.buf, |buf| {
-                    let mut buf = buf.try_mut().unwrap_or_else(|_old_mask_buf| BytesMut::new());
-                    buf.resize(data.len(), 0);
-
-                    {
-                        let (buf1, buf2, buf3) = unsafe { buf.align_to_mut() };
-                        let (data1, data) = data.split_at(buf1.len());
-                        let (data2, data3) = unsafe { unaligned(data) };
-                        let mask = mask_u8_copy(buf1, data1, mask);
-                        mask_aligned_copy(buf2, data2, mask);
-                        mask_u8_copy(buf3, data3, mask);
-                    }
-
-                    buf.freeze()
-                });
-
-                self.buf.clone()
-            }
-        }
+        buff.freeze()
     }
 }
 
@@ -152,18 +130,10 @@ mod tests {
         \xc889";
 
     #[test]
-    fn cant_try_mut_a_shared_bytes() {
-        // The benches below rely on having test data that causes `orig_data.clone().try_mut()` to return Err
-        let orig_data = Bytes::from(DATA);
-        let data = orig_data.clone();
-        assert!(data.try_mut().is_err());
-    }
-
-    #[test]
     fn can_mask() {
         let mask = Mask::from(unsafe { mem::transmute::<[u8; 4], u32>([0xff, 0x00, 0x00, 0x01]) });
         let mut masker = Masker::new();
-        let orig_data = Bytes::from(DATA);
+        let orig_data = Bytes::from_static(DATA);
         let data = masker.mask(orig_data.clone(), mask);
 
         assert_eq!(b'a' ^ 0xff, data[0]);
