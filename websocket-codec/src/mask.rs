@@ -123,9 +123,10 @@ mod tests {
     fn can_mask() {
         let mask = Mask::from(unsafe { mem::transmute::<[u8; 4], u32>([0xff, 0x00, 0x00, 0x01]) });
         let orig_data = Bytes::from_static(DATA);
+
         let mut data = BytesMut::with_capacity(orig_data.len());
         data.put(orig_data.clone());
-        mask::mask_slice_copy(&mut data, &orig_data, mask);
+        mask::mask_slice(&mut data, mask);
 
         assert_eq!(b'a' ^ 0xff, data[0]);
         assert_eq!(b'd' ^ 0x01, data[3]);
@@ -133,43 +134,5 @@ mod tests {
 
         mask::mask_slice(&mut data, mask);
         assert_eq!(orig_data, data);
-    }
-}
-
-#[cfg(all(feature = "nightly", test))]
-mod benches {
-    use bytes::Bytes;
-    use take_mut;
-    use test::Bencher;
-
-    use crate::mask;
-    use crate::tests::DATA;
-
-    #[bench]
-    fn mask_not_shared(b: &mut Bencher) {
-        // Given a Bytes that has never been clone()d, Masker::mask should be fast.
-        let mask = 42.into();
-        let mut orig_data = Bytes::from_static(DATA);
-        b.iter(|| {
-            take_mut::take(&mut orig_data, |data| {
-                let data = mask::mask_slice(&mut data, mask);
-                let data = mask::mask_slice(&mut data, mask);
-                data
-            });
-        })
-    }
-
-    #[bench]
-    fn mask_shared(b: &mut Bencher) {
-        // Given a Bytes where a clone()d instance exists somewhere, Masker::mask should be
-        // slower, but still reasonably fast.
-        let mask = 42.into();
-        let orig_data = Bytes::from_static(DATA);
-        b.iter(|| {
-            let data = orig_data.clone();
-            let data = mask::mask_slice(data.clone(), mask);
-            let data = mask::mask_slice(data.clone(), mask);
-            assert_eq!(orig_data, data);
-        });
     }
 }
