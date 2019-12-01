@@ -1,6 +1,4 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
-// use std::mem;
-// use std::slice;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use rand;
@@ -26,20 +24,6 @@ impl From<Mask> for u32 {
     }
 }
 
-/*
-unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
-    let size = mem::size_of::<T>();
-    if size == 0 {
-        return (&[], data);
-    }
-
-    let len1 = data.len() / size;
-    (
-        slice::from_raw_parts(data.as_ptr() as *const T, len1),
-        &data[len1 * size..],
-    )
-}*/
-
 fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     for b in data {
         *b ^= mask as u8;
@@ -49,31 +33,11 @@ fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     mask
 }
 
-/*
-fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
-    assert_eq!(buf.len(), data.len());
-
-    for (dest, &src) in buf.into_iter().zip(data) {
-        *dest = src ^ (mask as u8);
-        mask = mask.rotate_right(8);
-    }
-
-    mask
-}*/
-
 fn mask_aligned_in_place(data: &mut [u32], mask: u32) {
     for n in data {
         *n ^= mask;
     }
 }
-/*
-fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
-    assert_eq!(buf.len(), data.len());
-
-    for (dest, &src) in buf.into_iter().zip(data) {
-        *dest = src ^ mask;
-    }
-}*/
 
 /// Masks data sent by a client, and unmasks data received by a server.
 pub struct Masker;
