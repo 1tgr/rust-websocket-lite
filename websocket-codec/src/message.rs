@@ -280,6 +280,7 @@ mod tests {
         assert_eq!(is_text, message2.as_text().is_some());
         assert_eq!(data.as_bytes(), message2.data());
     }
+
     quickcheck! {
         fn qc_round_trips(is_text: bool, data: String) -> bool {
             round_trips(is_text, data);
