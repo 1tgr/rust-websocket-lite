@@ -1,14 +1,17 @@
 use std::fmt;
 use std::io::{Read, Write};
-use std::net::{self, SocketAddr};
+use std::net::{SocketAddr, TcpStream as StdTcpStream};
 use std::result;
 use std::str;
 
 use base64;
 use futures::StreamExt;
 use rand;
-use tokio_codec::{Decoder, Encoder, Framed};
-use tokio_io::{self, AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::{
+    io::{AsyncRead, AsyncWrite, AsyncWriteExt},
+    net::TcpStream as TokioTcpStream,
+};
+use tokio_util::codec::{Decoder, Encoder, Framed};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
@@ -16,10 +19,12 @@ use crate::ssl;
 use crate::sync;
 use crate::{AsyncClient, AsyncNetworkStream, Client, MessageCodec, NetworkStream, Result};
 
-fn replace_codec<T: AsyncRead + AsyncWrite, C1, C2: Encoder + Decoder>(
-    framed: Framed<T, C1>,
-    codec: C2,
-) -> Framed<T, C2> {
+fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
+where
+    T: AsyncRead + AsyncWrite,
+    C1: Encoder + Decoder,
+    C2: Encoder + Decoder,
+{
     // TODO improve this? https://github.com/tokio-rs/tokio/issues/717
     let parts1 = framed.into_parts();
     let mut parts2 = Framed::new(parts1.io, codec).into_parts();
@@ -105,7 +110,11 @@ impl ClientBuilder {
     ///
     /// This method never fails as the URL has already been parsed.
     pub fn from_url(url: Url) -> Self {
-        ClientBuilder { url, key: None, headers: Vec::new() }
+        ClientBuilder {
+            url,
+            key: None,
+            headers: Vec::new(),
+        }
     }
 
     /// Adds an extra HTTP header for client
@@ -114,22 +123,13 @@ impl ClientBuilder {
         self.headers.push((name, value));
     }
 
-    // Not pub - used by the tests
-    #[cfg(test)]
-    fn key(mut self, key: &[u8]) -> Self {
-        let mut a = [0; 16];
-        a.copy_from_slice(key);
-        self.key = Some(a);
-        self
-    }
-
     /// Establishes a connection to the WebSocket server.
     ///
     /// `wss://...` URLs are not supported by this method. Use `async_connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
-    pub async fn async_connect_insecure(self) -> Result<AsyncClient<tokio_net::tcp::TcpStream>> {
+    pub async fn async_connect_insecure(self) -> Result<AsyncClient<TokioTcpStream>> {
         let addr = resolve(&self.url)?;
-        let stream = tokio_net::tcp::TcpStream::connect(&addr).await?;
+        let stream = TokioTcpStream::connect(&addr).await?;
         Ok(self.async_connect_on(stream).await?)
     }
 
@@ -137,9 +137,9 @@ impl ClientBuilder {
     ///
     /// `wss://...` URLs are not supported by this method. Use `connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
-    pub fn connect_insecure(self) -> Result<Client<net::TcpStream>> {
+    pub fn connect_insecure(self) -> Result<Client<StdTcpStream>> {
         let addr = resolve(&self.url)?;
-        let stream = net::TcpStream::connect(&addr)?;
+        let stream = StdTcpStream::connect(&addr)?;
         self.connect_on(stream)
     }
 
@@ -148,7 +148,7 @@ impl ClientBuilder {
         self,
     ) -> Result<AsyncClient<Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static>>> {
         let addr = resolve(&self.url)?;
-        let stream = tokio_net::tcp::TcpStream::connect(&addr).await?;
+        let stream = TokioTcpStream::connect(&addr).await?;
 
         let stream: Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static> = if self.url.scheme() == "wss" {
             let domain = self.url.domain().unwrap_or("").to_owned();
@@ -164,7 +164,7 @@ impl ClientBuilder {
     /// Establishes a connection to the WebSocket server.
     pub fn connect(self) -> Result<Client<Box<dyn NetworkStream + Sync + Send + 'static>>> {
         let addr = resolve(&self.url)?;
-        let stream = net::TcpStream::connect(&addr)?;
+        let stream = StdTcpStream::connect(&addr)?;
 
         let stream: Box<dyn NetworkStream + Sync + Send + 'static> = if self.url.scheme() == "wss" {
             let domain = self.url.domain().unwrap_or("");
@@ -207,6 +207,15 @@ impl ClientBuilder {
         framed.receive()?.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
         Ok(framed.replace_codec(MessageCodec::new()))
     }
+
+    // Not pub - used by the tests
+    #[cfg(test)]
+    fn key(mut self, key: &[u8]) -> Self {
+        let mut a = [0; 16];
+        a.copy_from_slice(key);
+        self.key = Some(a);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -219,8 +228,8 @@ mod tests {
     use std::task::{Context, Poll};
 
     use base64;
+    use tokio::io::{AsyncRead, AsyncWrite};
     use tokio::runtime::Runtime;
-    use tokio_io::{AsyncRead, AsyncWrite};
 
     use crate::ClientBuilder;
 

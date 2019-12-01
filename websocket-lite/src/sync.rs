@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 
 use bytes::{BufMut, BytesMut};
-use tokio_codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 pub struct Framed<S, C> {
     stream: S,
@@ -53,7 +53,12 @@ impl<S: Read, C: Decoder> Framed<S, C> {
             }
 
             let n = unsafe {
-                let n = self.stream.read(self.read_buf.bytes_mut())?;
+                let mut buff = BytesMut::new();
+                for el in self.read_buf.bytes_mut() {
+                    buff.put_u8(el.assume_init());
+                }
+                // let read: &mut [u8] = self.read_buf.bytes_mut().assume_init();
+                let n = self.stream.read(&mut buff)?;
                 self.read_buf.advance_mut(n);
                 n
             };

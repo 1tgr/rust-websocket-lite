@@ -3,11 +3,13 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use futures::future;
+use futures::future::{self, FutureExt};
+use futures::sink::SinkExt;
+use futures::stream::StreamExt;
 use structopt::StructOpt;
 use tokio::io::BufReader;
 use tokio::prelude::*;
-use tokio::timer;
+use tokio::time;
 use url::Url;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
 
@@ -39,19 +41,17 @@ async fn main() -> Result<()> {
         let mut sink = sink;
 
         loop {
-            let (data, stream) = stream_mut.into_future().await;
+            let data = stream_mut.next_line().await?;
 
             if let Some(data) = data {
-                let message = Message::new(Opcode::Text, data?)?;
+                let message = Message::new(Opcode::Text, data)?;
                 sink.send(message).await?;
             } else {
                 break;
             }
-
-            stream_mut = stream;
         }
 
-        timer::delay_for(eof_wait).await;
+        time::delay_for(eof_wait).await;
         Ok(()) as Result<()>
     };
 

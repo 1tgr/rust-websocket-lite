@@ -28,22 +28,21 @@ path = "examples/wsdump.rs"
 
 [dependencies]
 base64 = "0.11"
-bytes = "0.4"
-futures-preview = "0.3.0-alpha.19"
+bytes = "0.5.2"
+futures = "0.3.1"
 native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.7"
-tokio-codec = "0.2.0-alpha.6"
-tokio-io = { version = "0.2.0-alpha.6", features = ["util"] }
+tokio-util = {version= "0.2.0", features=["codec"]}
 tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
-tokio-net = { version = "0.2.0-alpha.6", features = ["tcp"] }
-tokio-tls = { version = "0.3.0-alpha.6", optional = true }
+tokio-tls = { version = "0.3.0", optional = true }
+tokio = {version="0.2.2", features=["tcp", "io-util"]}
 url = "2"
 websocket-codec = { version = "0.2.2-alpha.6", path = "../websocket-codec" }
 
 [dev-dependencies]
 structopt = "0.3"
-tokio = "0.2.0-alpha.6"
+tokio = {version ="0.2.2", features=["macros", "time", "io-std"]}
 
 [features]
 default = ["ssl-native-tls"]
