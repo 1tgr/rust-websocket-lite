@@ -1,6 +1,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
 
-use bytes::{BufMut, Bytes, BytesMut};
+use std::mem;
+use std::slice;
+
 use rand;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -24,6 +26,55 @@ impl From<Mask> for u32 {
     }
 }
 
+/// Masks *by copying* data sent by a client, and unmasks data received by a server.
+pub fn mask_slice_copy(buf: &mut [u8], data: &[u8], mask: Mask) {
+    let (buf1, buf2, buf3) = unsafe { buf.align_to_mut() };
+    let (data1, data) = data.split_at(buf1.len());
+    let (data2, data3) = unsafe { unaligned(data) };
+    let Mask(mask) = mask;
+    let mask = mask_u8_copy(buf1, data1, mask);
+    mask_aligned_copy(buf2, data2, mask);
+    mask_u8_copy(buf3, data3, mask);
+}
+unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
+    let size = mem::size_of::<T>();
+    if size == 0 {
+        return (&[], data);
+    }
+
+    let len1 = data.len() / size;
+    (
+        slice::from_raw_parts(data.as_ptr() as *const T, len1),
+        &data[len1 * size..],
+    )
+}
+fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
+    debug_assert_eq!(buf.len(), data.len());
+
+    for (dest, &src) in buf.into_iter().zip(data) {
+        *dest = src ^ mask;
+    }
+}
+fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
+    debug_assert_eq!(buf.len(), data.len());
+
+    for (dest, &src) in buf.into_iter().zip(data) {
+        *dest = src ^ (mask as u8);
+        mask = mask.rotate_right(8);
+    }
+
+    mask
+}
+
+/// Masks data sent by a client, and unmasks data received by a server.
+pub fn mask_slice(data: &mut [u8], mask: Mask) {
+    let Mask(mask) = mask;
+
+    let (data1, data2, data3) = unsafe { data.align_to_mut() };
+    let mask = mask_u8_in_place(data1, mask);
+    mask_aligned_in_place(data2, mask);
+    mask_u8_in_place(data3, mask);
+}
 fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     for b in data {
         *b ^= mask as u8;
@@ -32,32 +83,9 @@ fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
 
     mask
 }
-
 fn mask_aligned_in_place(data: &mut [u32], mask: u32) {
     for n in data {
         *n ^= mask;
-    }
-}
-
-/// Masks data sent by a client, and unmasks data received by a server.
-pub struct Masker;
-
-impl Masker {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn mask(&mut self, data: Bytes, mask: Mask) -> Bytes {
-        let Mask(mask) = mask;
-        let mut buff = BytesMut::with_capacity(data.len());
-        buff.put(data);
-
-        let (data1, data2, data3) = unsafe { buff.align_to_mut() };
-        let mask = mask_u8_in_place(data1, mask);
-        mask_aligned_in_place(data2, mask);
-        mask_u8_in_place(data3, mask);
-
-        buff.freeze()
     }
 }
 
@@ -65,9 +93,9 @@ impl Masker {
 mod tests {
     use std::mem;
 
-    use bytes::Bytes;
+    use bytes::{BufMut, Bytes, BytesMut};
 
-    use crate::mask::{Mask, Masker};
+    use crate::mask::{self, Mask};
 
     // Test data chosen so that:
     //  - It's not a multiple of 4, ie masking of the unaligned section works
@@ -94,15 +122,16 @@ mod tests {
     #[test]
     fn can_mask() {
         let mask = Mask::from(unsafe { mem::transmute::<[u8; 4], u32>([0xff, 0x00, 0x00, 0x01]) });
-        let mut masker = Masker::new();
         let orig_data = Bytes::from_static(DATA);
-        let data = masker.mask(orig_data.clone(), mask);
+        let mut data = BytesMut::with_capacity(orig_data.len());
+        data.put(orig_data.clone());
+        mask::mask_slice_copy(&mut data, &orig_data, mask);
 
         assert_eq!(b'a' ^ 0xff, data[0]);
         assert_eq!(b'd' ^ 0x01, data[3]);
         assert_eq!(MASKED_DATA, &data);
 
-        let data = masker.mask(data, mask);
+        mask::mask_slice(&mut data, mask);
         assert_eq!(orig_data, data);
     }
 }
@@ -113,19 +142,18 @@ mod benches {
     use take_mut;
     use test::Bencher;
 
+    use crate::mask;
     use crate::tests::DATA;
-    use crate::Masker;
 
     #[bench]
     fn mask_not_shared(b: &mut Bencher) {
         // Given a Bytes that has never been clone()d, Masker::mask should be fast.
         let mask = 42.into();
-        let mut orig_data = Bytes::from(DATA);
+        let mut orig_data = Bytes::from_static(DATA);
         b.iter(|| {
             take_mut::take(&mut orig_data, |data| {
-                let mut masker = Masker::new();
-                let data = masker.mask(data, mask);
-                let data = masker.mask(data, mask);
+                let data = mask::mask_slice(&mut data, mask);
+                let data = mask::mask_slice(&mut data, mask);
                 data
             });
         })
@@ -136,12 +164,11 @@ mod benches {
         // Given a Bytes where a clone()d instance exists somewhere, Masker::mask should be
         // slower, but still reasonably fast.
         let mask = 42.into();
-        let orig_data = Bytes::from(DATA);
+        let orig_data = Bytes::from_static(DATA);
         b.iter(|| {
-            let mut masker = Masker::new();
             let data = orig_data.clone();
-            let data = masker.mask(data.clone(), mask);
-            let data = masker.mask(data.clone(), mask);
+            let data = mask::mask_slice(data.clone(), mask);
+            let data = mask::mask_slice(data.clone(), mask);
             assert_eq!(orig_data, data);
         });
     }

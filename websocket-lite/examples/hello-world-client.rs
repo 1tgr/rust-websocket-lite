@@ -45,7 +45,9 @@ async fn run() -> Result<()> {
 
 #[tokio::main]
 async fn main() {
-    run().await.unwrap_or_else(|e| {
-        eprintln!("{}", e);
-    })
+    tokio::spawn(async {
+        run().await.unwrap_or_else(|e| {
+            eprintln!("{}", e);
+        })
+    });
 }

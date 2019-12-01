@@ -1,4 +1,5 @@
 use std::io::{Read, Write};
+use std::mem::MaybeUninit;
 
 use bytes::{BufMut, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
@@ -52,11 +53,20 @@ impl<S: Read, C: Decoder> Framed<S, C> {
                 self.read_buf.reserve(1);
             }
 
-            let n = unsafe {
-                let n = self.stream.read(&mut self.read_buf)?;
-                self.read_buf.advance_mut(n);
-                n
+            let buf = self.read_buf.bytes_mut();
+
+            let buf = unsafe {
+                for x in buf.iter_mut() {
+                    *x.as_mut_ptr() = 0;
+                    x.assume_init();
+                }
+
+                &mut *(buf as *mut [MaybeUninit<u8>] as *mut [u8])
             };
+
+            let n = self.stream.read(buf)?;
+
+            unsafe { self.read_buf.advance_mut(n) };
 
             if n == 0 {
                 return self.codec.decode_eof(&mut self.read_buf);

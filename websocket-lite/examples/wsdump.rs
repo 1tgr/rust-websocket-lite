@@ -40,15 +40,9 @@ async fn main() -> Result<()> {
         let mut stream_mut = BufReader::new(tokio::io::stdin()).lines();
         let mut sink = sink;
 
-        loop {
-            let data = stream_mut.next_line().await?;
-
-            if let Some(data) = data {
-                let message = Message::new(Opcode::Text, data)?;
-                sink.send(message).await?;
-            } else {
-                break;
-            }
+        while let Some(data) = stream_mut.next_line().await? {
+            let message = Message::new(Opcode::Text, data)?;
+            sink.send(message).await?;
         }
 
         time::delay_for(eof_wait).await;

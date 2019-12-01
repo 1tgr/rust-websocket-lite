@@ -770,7 +770,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "websocket-codec"
-version = "0.2.2-alpha.6"
+version = "0.2.2"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -785,7 +785,7 @@ dependencies = [
 
 [[package]]
 name = "websocket-lite"
-version = "0.3.2-alpha.6"
+version = "0.3.2"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -799,7 +799,7 @@ dependencies = [
  "tokio-tls 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-util 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "websocket-codec 0.2.2-alpha.6",
+ "websocket-codec 0.2.2",
 ]
 
 [[package]]
