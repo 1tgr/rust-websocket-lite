@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 #![deny(rust_2018_idioms)]
-#![deny(warnings)]
+// #![deny(warnings)]
 #![cfg_attr(feature = "nightly", feature(test))]
 #![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 

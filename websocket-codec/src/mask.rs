@@ -76,13 +76,11 @@ fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
 }*/
 
 /// Masks data sent by a client, and unmasks data received by a server.
-pub struct Masker {
-    buf: Bytes,
-}
+pub struct Masker;
 
 impl Masker {
     pub fn new() -> Self {
-        Masker { buf: Bytes::new() }
+        Self
     }
 
     pub fn mask(&mut self, data: Bytes, mask: Mask) -> Bytes {

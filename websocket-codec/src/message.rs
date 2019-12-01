@@ -3,7 +3,7 @@ use std::result;
 use std::str::{self, Utf8Error};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use tokio_codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 use crate::frame::FrameHeader;
 use crate::mask::{Mask, Masker};
@@ -31,8 +31,8 @@ impl Message {
         Ok(Message { opcode, data })
     }
 
-    /// Creates a text message from a `&str`.
-    pub fn text(data: &str) -> Self {
+    /// Creates a text message from a `String`.
+    pub fn text(data: String) -> Self {
         Message {
             opcode: Opcode::Text,
             data: data.into(),
@@ -51,11 +51,12 @@ impl Message {
     ///
     /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
     /// may be defined by a particular WebSocket server.
-    pub fn close(reason: Option<(u16, &str)>) -> Self {
+    pub fn close(reason: Option<(u16, String)>) -> Self {
         let data = if let Some((code, reason)) = reason {
+            let reason: Bytes = reason.into();
             let mut buf = BytesMut::new();
             buf.reserve(2 + reason.len());
-            buf.put_u16_be(code);
+            buf.put_u16(code);
             buf.put(reason);
             buf.freeze()
         } else {
@@ -160,7 +161,7 @@ impl Decoder for MessageCodec {
             let data = src
                 .split_to(data_range.end)
                 .freeze()
-                .slice(data_range.start, data_range.end);
+                .slice(data_range.start..data_range.end);
 
             let data = if let Some(mask) = header.mask {
                 // Note: clients never need decode masked messages because masking is only used for client -> server frames.
@@ -182,7 +183,7 @@ impl Decoder for MessageCodec {
                     partial_data.extend_from_slice(&data);
 
                     if header.fin {
-                        return Ok(Some(Message::new(partial_opcode, partial_data)?));
+                        return Ok(Some(Message::new(partial_opcode, partial_data.freeze())?));
                     }
 
                     Some((partial_opcode, partial_data))
@@ -195,8 +196,9 @@ impl Decoder for MessageCodec {
                 if opcode.is_control() {
                     return Err("control frames must not be fragmented".into());
                 }
-
-                Some((opcode, data.into()))
+                let mut buff = BytesMut::with_capacity(data.len());
+                buff.put(data);
+                Some((opcode, buff))
             } else {
                 return Err("continuation must not be first frame".into());
             }
@@ -227,7 +229,7 @@ impl Encoder for MessageCodec {
 #[cfg(test)]
 mod tests {
     use bytes::{BufMut, BytesMut};
-    use tokio_codec::{Decoder, Encoder};
+    use tokio_util::codec::{Decoder, Encoder};
 
     use crate::frame::FrameHeader;
     use crate::mask::Masker;
@@ -251,7 +253,7 @@ mod tests {
 
     fn round_trips(is_text: bool, data: String) {
         let message = if is_text {
-            Message::text(&data)
+            Message::text(data)
         } else {
             Message::new(Opcode::Binary, data).unwrap()
         };
@@ -275,13 +277,14 @@ mod tests {
         header.write_to(&mut bytes);
 
         {
-            let data = data.as_bytes().into();
+            let mut vec = Vec::with_capacity(data.len());
+            vec.extend_from_slice(data.as_bytes());
+            let borrowed_data = vec.into();
             let data = if let Some(mask) = header.mask {
-                Masker::new().mask(data, mask)
+                Masker::new().mask(borrowed_data, mask)
             } else {
-                data
+                borrowed_data
             };
-
             bytes.put(data);
         }
 
@@ -289,7 +292,6 @@ mod tests {
         assert_eq!(is_text, message2.as_text().is_some());
         assert_eq!(data.as_bytes(), message2.data());
     }
-
     quickcheck! {
         fn qc_round_trips(is_text: bool, data: String) -> bool {
             round_trips(is_text, data);
