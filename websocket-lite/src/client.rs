@@ -201,7 +201,8 @@ impl ClientBuilder {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
-        stream.write_all(build_request(&self.url, key, &self.headers).as_ref())?;
+        let request = build_request(&self.url, key, &self.headers);
+        Write::write_all(&mut stream, request.as_bytes())?;
 
         let mut framed = sync::Framed::new(stream, upgrade_codec);
         framed.receive()?.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
@@ -326,13 +327,13 @@ mod tests {
     #[test]
     fn can_connect_on() -> Result<()> {
         let mut input = Cursor::new(&RESPONSE[..]);
-        let mut output = Cursor::new(Vec::new());
+        let mut output = Vec::new();
 
         ClientBuilder::new("ws://localhost:8000/stream?query")?
             .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
             .connect_on(ReadWritePair(&mut input, &mut output))?;
 
-        assert_eq!(REQUEST, str::from_utf8(&output.into_inner())?);
+        assert_eq!(REQUEST, str::from_utf8(&output)?);
         Ok(())
     }
 }

@@ -53,12 +53,7 @@ impl<S: Read, C: Decoder> Framed<S, C> {
             }
 
             let n = unsafe {
-                let mut buff = BytesMut::new();
-                for el in self.read_buf.bytes_mut() {
-                    buff.put_u8(el.assume_init());
-                }
-                // let read: &mut [u8] = self.read_buf.bytes_mut().assume_init();
-                let n = self.stream.read(&mut buff)?;
+                let n = self.stream.read(&mut self.read_buf)?;
                 self.read_buf.advance_mut(n);
                 n
             };
