@@ -26,8 +26,8 @@ pub use websocket_codec::{Error, Message, MessageCodec, Opcode, Result};
 
 use std::io::{Read, Write};
 
-use tokio_codec::Framed;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio_util::codec::Framed;
 
 /// Used by [`AsyncClient`](type.AsyncClient.html) to represent types that are `AsyncRead` and `AsyncWrite`.
 pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}

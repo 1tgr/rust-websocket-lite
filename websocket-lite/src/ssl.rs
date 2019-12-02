@@ -7,7 +7,7 @@ mod inner {
     use std::io::{Read, Write};
 
     use native_tls::{HandshakeError, TlsConnector};
-    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::{Error, Result};
 
@@ -43,7 +43,7 @@ mod inner {
 
     use futures::{Future, IntoFuture};
     use openssl::ssl::{SslConnector, SslConnectorBuilder, SslMethod};
-    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite};
     use tokio_openssl::SslConnectorExt;
 
     use {Error, Result};

@@ -8,6 +8,15 @@ use bytes::{BufMut, BytesMut};
 use crate::mask::Mask;
 use crate::{Opcode, Result};
 
+#[cfg(target_endian = "little")]
+fn put_u32_native(dst: &mut BytesMut, mask: u32) {
+    dst.put_u32_le(mask);
+}
+#[cfg(target_endian = "big")]
+fn put_u32_native(dst: &mut BytesMut, mask: u32) {
+    dst.put_u32(mask);
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FrameHeader {
     pub fin: bool,
@@ -118,17 +127,16 @@ impl FrameHeader {
 
         if self.len > 65535 {
             dst.put_u8(mask_bit | 127);
-            dst.put_u64_be(self.len as u64);
+            dst.put_u64(self.len as u64);
         } else if self.len > 125 {
             dst.put_u8(mask_bit | 126);
-            dst.put_u16_be(self.len as u16);
+            dst.put_u16(self.len as u16);
         } else {
             dst.put_u8(mask_bit | self.len as u8);
         }
 
         if let Some(mask) = self.mask {
-            #[allow(deprecated)]
-            dst.put_u32::<NativeEndian>(mask.into());
+            put_u32_native(dst, mask.into());
         }
     }
 }

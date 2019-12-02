@@ -1,7 +1,7 @@
 [package]
 name = "websocket-codec"
 description = "A Tokio codec for the websocket protocol"
-version = "0.2.2-alpha.6"
+version = "0.2.2"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
 repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
@@ -13,12 +13,11 @@ path = "src/lib.rs"
 [dependencies]
 base64 = "0.11"
 byteorder = "1"
-bytes = "0.4"
+bytes = "0.5"
 httparse = "1"
 rand = "0.7"
 sha1 = "0.6"
-take_mut = "0.2"
-tokio-codec = "0.2.0-alpha.6"
+tokio-util = {version="0.2", features=["codec"]}
 
 [dev-dependencies]
 quickcheck = "0.9"

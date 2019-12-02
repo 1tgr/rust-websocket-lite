@@ -43,14 +43,13 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-fn main() {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-
-    rt.spawn(async {
+#[tokio::main]
+async fn main() {
+    tokio::spawn(async {
         run().await.unwrap_or_else(|e| {
             eprintln!("{}", e);
         })
-    });
-
-    rt.shutdown_on_idle();
+    })
+    .await
+    .unwrap();
 }

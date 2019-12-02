@@ -3,10 +3,10 @@ use std::str;
 
 use base64;
 use base64::display::Base64Display;
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
 use httparse::{self, Header, Response};
 use sha1::{self, Sha1};
-use tokio_codec::{Decoder, Encoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 use crate::{Error, Result};
 
