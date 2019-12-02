@@ -25,6 +25,9 @@ This crate is fully conformant with the fuzzingserver module in the
 
 This is a standalone crate that does not do any I/O directly. For a full WebSocket client, see the [websocket-lite](https://docs.rs/websocket-lite) crate.
 
-# `async`/`await`
-As of October 2019, the `master` branch builds against Rust nightly, and is expected to build against Rust stable 1.40.
-It currently references `futures-preview = "0.3.0-alpha.19"` and `tokio = "0.2.0-alpha.6"`.
+# async/await
+Version 0.3.2 and above use `std` futures and the `async` and `await` keywords. They are based on tokio
+0.2 and futures 0.3 and the earliest supported compiler is 1.39.
+
+Version 0.2.4 is the release prior to `async`/`await`. It is based on tokio 0.1 and futures 0.1. 
+
