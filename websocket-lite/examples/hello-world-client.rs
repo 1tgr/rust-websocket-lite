@@ -49,5 +49,7 @@ async fn main() {
         run().await.unwrap_or_else(|e| {
             eprintln!("{}", e);
         })
-    });
+    })
+    .await
+    .unwrap();
 }
