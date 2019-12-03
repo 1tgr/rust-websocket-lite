@@ -5,6 +5,7 @@ services:
 
 before_script:
   - docker pull 1tgr/websocket-lite:${TRAVIS_BRANCH} || docker pull 1tgr/websocket-lite:master || true
+  - docker pull 1tgr/websocket-lite:latest|| true
   - docker build --target deps -t 1tgr/websocket-lite-deps .
 
 script:
@@ -12,4 +13,6 @@ script:
 
 after_script:
   - docker tag 1tgr/websocket-lite:latest 1tgr/websocket-lite:${TRAVIS_BRANCH}
+  - echo "{$DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+  - docker push 1tgr/websocket-lite:latest
   - docker push 1tgr/websocket-lite:${TRAVIS_BRANCH}
