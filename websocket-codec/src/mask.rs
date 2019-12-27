@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
+#![allow(clippy::new_without_default)]
 
 use std::mem;
 use std::slice;
@@ -36,6 +36,7 @@ pub fn mask_slice_copy(buf: &mut [u8], data: &[u8], mask: Mask) {
     mask_aligned_copy(buf2, data2, mask);
     mask_u8_copy(buf3, data3, mask);
 }
+
 unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
     let size = mem::size_of::<T>();
     if size == 0 {
@@ -48,17 +49,19 @@ unsafe fn unaligned<T>(data: &[u8]) -> (&[T], &[u8]) {
         &data[len1 * size..],
     )
 }
+
 fn mask_aligned_copy(buf: &mut [u32], data: &[u32], mask: u32) {
     debug_assert_eq!(buf.len(), data.len());
 
-    for (dest, &src) in buf.into_iter().zip(data) {
+    for (dest, &src) in buf.iter_mut().zip(data) {
         *dest = src ^ mask;
     }
 }
+
 fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
     debug_assert_eq!(buf.len(), data.len());
 
-    for (dest, &src) in buf.into_iter().zip(data) {
+    for (dest, &src) in buf.iter_mut().zip(data) {
         *dest = src ^ (mask as u8);
         mask = mask.rotate_right(8);
     }

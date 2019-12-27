@@ -116,6 +116,7 @@ impl Message {
 }
 
 /// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
+#[derive(Clone, Default)]
 pub struct MessageCodec {
     interrupted_message: Option<(Opcode, BytesMut)>,
 }
@@ -123,9 +124,7 @@ pub struct MessageCodec {
 impl MessageCodec {
     /// Creates a `MessageCodec`.
     pub fn new() -> Self {
-        MessageCodec {
-            interrupted_message: None,
-        }
+        Default::default()
     }
 }
 

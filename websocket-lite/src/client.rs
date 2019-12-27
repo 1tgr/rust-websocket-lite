@@ -56,7 +56,7 @@ fn make_key(key: Option<[u8; 16]>, key_base64: &mut [u8; 24]) -> &str {
     str::from_utf8(key_base64).unwrap()
 }
 
-fn build_request(url: &Url, key: &str, headers: &Vec<(String, String)>) -> String {
+fn build_request(url: &Url, key: &str, headers: &[(String, String)]) -> String {
     let mut s = String::new();
     writeok!(s, "GET {path}", path = url.path());
     if let Some(query) = url.query() {
@@ -82,9 +82,11 @@ fn build_request(url: &Url, key: &str, headers: &Vec<(String, String)>) -> Strin
          Sec-WebSocket-Version: 13\r\n",
         key = key
     );
-    for (name, value) in headers.iter() {
+
+    for (name, value) in headers {
         writeok!(s, "{name}: {value}\r\n", name = name, value = value);
     }
+
     writeok!(s, "\r\n");
     s
 }

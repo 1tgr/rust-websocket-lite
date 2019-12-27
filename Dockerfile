@@ -12,6 +12,7 @@ WORKDIR /build
 COPY rust-toolchain .
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $(cat rust-toolchain)
 ENV PATH=$PATH:/root/.cargo/bin
+RUN rustup component add clippy
 
 FROM deps as build
 
@@ -23,6 +24,7 @@ RUN cargo fetch
 COPY . .
 RUN cargo test --release
 RUN cargo build --release
+RUN cargo clippy --release
 
 FROM ubuntu:bionic-20191010 as app
 
