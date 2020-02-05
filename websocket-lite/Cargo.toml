@@ -29,7 +29,7 @@ path = "examples/wsdump.rs"
 [dependencies]
 base64 = "0.11"
 bytes = "0.5"
-futures = "0.3.1"
+futures = "0.3.3"
 native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.7"
