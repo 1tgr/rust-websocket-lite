@@ -125,15 +125,28 @@ impl Message {
 }
 
 /// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MessageCodec {
     interrupted_message: Option<(Opcode, BytesMut)>,
+    use_mask: bool,
 }
 
 impl MessageCodec {
     /// Creates a `MessageCodec`.
     pub fn new() -> Self {
-        Default::default()
+        Self {
+            use_mask: true,
+            interrupted_message: None,
+        }
+    }
+
+    /// Creates a `MessageCodec` while specifying whether to use message masking while encoding.
+    /// The default behavior is to use message masking while encoding.
+    pub fn with_masked_encode(use_mask: bool) -> Self {
+        Self {
+            use_mask,
+            interrupted_message: None,
+        }
     }
 }
 
@@ -207,14 +220,25 @@ impl Encoder for MessageCodec {
     type Error = Error;
 
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<()> {
-        let mask = Mask::new();
-        let header = item.header(Some(mask));
+        let mask = if self.use_mask { Some(Mask::new()) } else { None };
+
+        let header = FrameHeader {
+            fin: true,
+            opcode: Some(item.opcode),
+            mask,
+            len: item.data.len(),
+        };
+
         dst.reserve(header.frame_len());
         header.write_to(dst);
 
-        let offset = dst.len();
-        dst.resize(offset + item.data.len(), 0);
-        mask::mask_slice_copy(&mut dst[offset..], &item.data, mask);
+        if let Some(mask) = header.mask {
+            let offset = dst.len();
+            dst.resize(offset + item.data.len(), 0);
+            mask::mask_slice_copy(&mut dst[offset..], &item.data, mask);
+        } else {
+            dst.put_slice(&item.data);
+        }
 
         Ok(())
     }
