@@ -42,7 +42,7 @@ websocket-codec = { version = "0.2.2", path = "../websocket-codec" }
 
 [dev-dependencies]
 structopt = "0.3"
-tokio = {version ="0.2.10", features=["macros", "time", "io-std"]}
+tokio = {version ="0.2.11", features=["macros", "time", "io-std"]}
 
 [features]
 default = ["ssl-native-tls"]
