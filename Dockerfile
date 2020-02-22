@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20191010 as deps
+FROM ubuntu:bionic-20200219 as deps
 
 RUN apt-get -y update
 
@@ -26,7 +26,7 @@ RUN cargo test --release
 RUN cargo build --release
 RUN cargo clippy --release
 
-FROM ubuntu:bionic-20191010 as app
+FROM ubuntu:bionic-20200219 as app
 
 RUN apt-get -y update
 
