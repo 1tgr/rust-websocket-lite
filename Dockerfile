@@ -17,6 +17,7 @@ RUN rustup component add clippy
 FROM deps as build
 
 COPY Cargo.toml Cargo.lock ./
+COPY assert-allocations/Cargo.toml assert-allocations/
 COPY websocket-codec/Cargo.toml websocket-codec/
 COPY websocket-lite/Cargo.toml websocket-lite/
 RUN cargo fetch

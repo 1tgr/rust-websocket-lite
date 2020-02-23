@@ -54,3 +54,43 @@ where
     assert_eq!(change, bytes);
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::assert_allocated_bytes;
+    use std::mem;
+
+    #[test]
+    fn vec_allocates() {
+        let mut v: Vec<u8> = Vec::new();
+        assert_allocated_bytes(10, || {
+            v.reserve(10);
+        })
+    }
+
+    #[test]
+    fn vec_reallocates() {
+        let mut v: Vec<u8> = assert_allocated_bytes(5, || {
+            let mut v = Vec::with_capacity(5);
+            v.extend_from_slice(&[1, 2, 3, 4, 5]);
+            v
+        });
+
+        assert_allocated_bytes(10, || {
+            v.resize(10, 0u8);
+        });
+    }
+
+    #[test]
+    fn drop_does_not_allocate() {
+        let v: Vec<u8> = assert_allocated_bytes(5, || {
+            let mut v = Vec::with_capacity(5);
+            v.extend_from_slice(&[1, 2, 3, 4, 5]);
+            v
+        });
+
+        assert_allocated_bytes(0, || {
+            mem::drop(v);
+        })
+    }
+}
