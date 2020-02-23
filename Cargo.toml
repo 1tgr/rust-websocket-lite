@@ -1,2 +1,6 @@
 [workspace]
-members = ["websocket-codec", "websocket-lite"]
+members = [
+    "assert-allocations",
+    "websocket-codec",
+    "websocket-lite"
+]

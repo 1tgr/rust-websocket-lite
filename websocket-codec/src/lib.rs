@@ -9,7 +9,7 @@
 
 #[cfg(test)]
 #[macro_use]
-extern crate quickcheck;
+extern crate quickcheck_macros;
 
 #[cfg(all(feature = "nightly", test))]
 extern crate test;

@@ -96,6 +96,7 @@ fn mask_aligned_in_place(data: &mut [u32], mask: u32) {
 mod tests {
     use std::mem;
 
+    use assert_allocations::assert_allocated_bytes;
     use bytes::{BufMut, Bytes, BytesMut};
 
     use crate::mask::{self, Mask};
@@ -129,13 +130,13 @@ mod tests {
 
         let mut data = BytesMut::with_capacity(orig_data.len());
         data.put(orig_data.clone());
-        mask::mask_slice(&mut data, mask);
+        assert_allocated_bytes(0, || mask::mask_slice(&mut data, mask));
 
         assert_eq!(b'a' ^ 0xff, data[0]);
         assert_eq!(b'd' ^ 0x01, data[3]);
         assert_eq!(MASKED_DATA, &data);
 
-        mask::mask_slice(&mut data, mask);
+        assert_allocated_bytes(0, || mask::mask_slice(&mut data, mask));
         assert_eq!(orig_data, data);
     }
 }

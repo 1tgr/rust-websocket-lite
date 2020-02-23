@@ -103,7 +103,7 @@ impl FrameHeader {
         )))
     }
 
-    fn frame_len(&self) -> usize {
+    pub(crate) fn frame_len(&self) -> usize {
         let mut len = 1 /* fin|opcode */ + 1 /* mask|len1 */;
         if self.len > 65535 {
             len += 8;
@@ -143,34 +143,31 @@ impl FrameHeader {
 
 #[cfg(test)]
 mod tests {
+    use assert_allocations::assert_allocated_bytes;
     use bytes::BytesMut;
 
     use crate::frame::FrameHeader;
     use crate::opcode::Opcode;
 
+    #[quickcheck]
     fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) {
-        let header = FrameHeader {
+        let header = assert_allocated_bytes(0, || FrameHeader {
             fin,
             opcode: Some(if is_text { Opcode::Text } else { Opcode::Binary }),
             mask: mask.map(|n| n.into()),
             len,
-        };
+        });
 
-        let mut bytes = BytesMut::new();
-        header.write_to(&mut bytes);
+        assert_allocated_bytes(header.frame_len(), || {
+            let mut bytes = BytesMut::new();
+            header.write_to(&mut bytes);
 
-        let bytes = bytes.freeze();
-        assert_eq!(header.frame_len(), bytes.len() + header.len);
+            let bytes = &bytes[..];
+            assert_eq!(header.frame_len(), bytes.len() + header.len);
 
-        let (header2, data_range) = FrameHeader::validate(&bytes).unwrap().unwrap();
-        assert_eq!(data_range.start, bytes.len());
-        assert_eq!(header, header2)
-    }
-
-    quickcheck! {
-        fn qc_round_trips(fin: bool, is_text: bool, mask: Option<u32>, len: usize) -> bool {
-            round_trips(fin, is_text, mask, len);
-            true
-        }
+            let (header2, data_range) = FrameHeader::validate(&bytes).unwrap().unwrap();
+            assert_eq!(data_range.start, bytes.len());
+            assert_eq!(header, header2)
+        })
     }
 }

@@ -19,6 +19,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert-allocations"
+version = "0.1.0"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -529,6 +533,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quickcheck_macros"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "608c156fd8e97febc07dc9c2e2c80bf74cfc6ef26893eae3daf8bc2bc94a4b7f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -885,11 +900,13 @@ checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 name = "websocket-codec"
 version = "0.2.2"
 dependencies = [
+ "assert-allocations",
  "base64",
  "byteorder",
  "bytes",
  "httparse",
  "quickcheck",
+ "quickcheck_macros",
  "rand",
  "sha1",
  "tokio-util",

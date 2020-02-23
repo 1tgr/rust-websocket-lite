@@ -47,6 +47,15 @@ impl Message {
         }
     }
 
+    pub(crate) fn header(&self, mask: Option<Mask>) -> FrameHeader {
+        FrameHeader {
+            fin: true,
+            opcode: Some(self.opcode),
+            mask,
+            len: self.data.len(),
+        }
+    }
+
     /// Creates a message that indicates the connection is about to be closed.
     ///
     /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
@@ -199,14 +208,8 @@ impl Encoder for MessageCodec {
 
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<()> {
         let mask = Mask::new();
-
-        let header = FrameHeader {
-            fin: true,
-            opcode: Some(item.opcode),
-            mask: Some(mask),
-            len: item.data.len(),
-        };
-
+        let header = item.header(Some(mask));
+        dst.reserve(header.frame_len());
         header.write_to(dst);
 
         let offset = dst.len();
@@ -219,76 +222,125 @@ impl Encoder for MessageCodec {
 
 #[cfg(test)]
 mod tests {
+    use assert_allocations::assert_allocated_bytes;
     use bytes::{BufMut, BytesMut};
     use tokio_util::codec::{Decoder, Encoder};
 
     use crate::frame::FrameHeader;
     use crate::mask;
+    use crate::mask::Mask;
     use crate::opcode::Opcode;
     use crate::{Message, MessageCodec};
 
-    fn decode<D: Decoder>(decoder: &mut D, mut src: &[u8]) -> Result<D::Item, D::Error> {
+    #[quickcheck]
+    fn round_trips(is_text: bool, data: String) {
+        let message = assert_allocated_bytes(0, || {
+            if is_text {
+                Message::text(data)
+            } else {
+                Message::binary(data.into_bytes())
+            }
+        });
+
+        let frame_len = message.header(Some(Mask::new())).frame_len();
+        let mut bytes = BytesMut::new();
+        assert_allocated_bytes(frame_len, {
+            let message = message.clone();
+            || {
+                MessageCodec::new()
+                    .encode(message, &mut bytes)
+                    .expect("didn't expect MessageCodec::encode to return an error")
+            }
+        });
+
+        // We eagerly promote the BytesMut to KIND_ARC. This ensures we make a call to Box::new here,
+        // instead of inside the assert_allocated_bytes(0) block below.
+        let mut src = bytes.split();
+
+        let message2 = assert_allocated_bytes(0, || {
+            MessageCodec::new()
+                .decode(&mut src)
+                .expect("didn't expect MessageCodec::decode to return an error")
+                .expect("expected buffer to contain the full frame")
+        });
+
+        assert_eq!(message, message2);
+    }
+
+    #[quickcheck]
+    fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
+        let header = assert_allocated_bytes(0, || {
+            FrameHeader {
+                fin: true, // TODO test messages split across frames
+                opcode: Some(if is_text { Opcode::Text } else { Opcode::Binary }),
+                mask: mask.map(|n| n.into()),
+                len: data.len(),
+            }
+        });
+
+        let mut bytes = BytesMut::with_capacity(header.frame_len());
+        assert_allocated_bytes(0, || {
+            header.write_to(&mut bytes);
+
+            if let Some(mask) = header.mask {
+                let offset = bytes.len();
+                bytes.resize(offset + data.len(), 0);
+                mask::mask_slice_copy(&mut bytes[offset..], data.as_bytes(), mask);
+            } else {
+                bytes.put(data.as_bytes());
+            }
+        });
+
+        // We eagerly promote the BytesMut to KIND_ARC. This ensures we make a call to Box::new here,
+        // instead of inside the assert_allocated_bytes(0) block below.
+        let mut src = bytes.split();
+
+        assert_allocated_bytes(0, || {
+            let message2 = MessageCodec::new()
+                .decode(&mut src)
+                .expect("didn't expect MessageCodec::decode to return an error")
+                .expect("expected buffer to contain the full frame");
+
+            assert_eq!(is_text, message2.as_text().is_some());
+            assert_eq!(data.as_bytes(), message2.data());
+        });
+    }
+
+    #[quickcheck]
+    fn reserves_buffer(is_text: bool, data: String) {
+        let message = if is_text {
+            Message::text(data)
+        } else {
+            Message::binary(data.into_bytes())
+        };
+
+        let mut bytes = BytesMut::new();
+        MessageCodec::new()
+            .encode(message.clone(), &mut bytes)
+            .expect("didn't expect MessageCodec::encode to return an error");
+
+        // We don't check allocations around the MessageCodec::decode call below. We're deliberately
+        // supplying a minimal number of source bytes each time, so we expect lots of small
+        // allocations as decoder_buf is resized multiple times.
+
+        let mut src = &bytes[..];
+        let mut decoder = MessageCodec::new();
         let mut decoder_buf = BytesMut::new();
-        loop {
-            if let Some(result) = decoder.decode(&mut decoder_buf)? {
+        let message2 = loop {
+            if let Some(result) = decoder
+                .decode(&mut decoder_buf)
+                .expect("didn't expect MessageCodec::decode to return an error")
+            {
                 assert_eq!(0, decoder_buf.len(), "expected decoder to consume the whole buffer");
-                return Ok(result);
+                break result;
             }
 
             let n = decoder_buf.remaining_mut().min(src.len());
             assert!(n > 0, "expected decoder to reserve at least one byte");
             decoder_buf.put_slice(&src[..n]);
             src = &src[n..];
-        }
-    }
-
-    fn round_trips(is_text: bool, data: String) {
-        let message = if is_text {
-            Message::text(data)
-        } else {
-            Message::new(Opcode::Binary, data).unwrap()
         };
 
-        let mut bytes = BytesMut::new();
-        MessageCodec::new().encode(message.clone(), &mut bytes).unwrap();
-
-        let message2 = decode(&mut MessageCodec::new(), &mut bytes).unwrap();
         assert_eq!(message, message2);
-    }
-
-    fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
-        let header = FrameHeader {
-            fin: true, // TODO test messages split across frames
-            opcode: Some(if is_text { Opcode::Text } else { Opcode::Binary }),
-            mask: mask.map(|n| n.into()),
-            len: data.len(),
-        };
-
-        let mut bytes = BytesMut::new();
-        header.write_to(&mut bytes);
-
-        if let Some(mask) = header.mask {
-            let offset = bytes.len();
-            bytes.resize(offset + data.len(), 0);
-            mask::mask_slice_copy(&mut bytes[offset..], data.as_bytes(), mask);
-        } else {
-            bytes.put(data.as_bytes());
-        }
-
-        let message2 = decode(&mut MessageCodec::new(), &bytes).unwrap();
-        assert_eq!(is_text, message2.as_text().is_some());
-        assert_eq!(data.as_bytes(), message2.data());
-    }
-
-    quickcheck! {
-        fn qc_round_trips(is_text: bool, data: String) -> bool {
-            round_trips(is_text, data);
-            true
-        }
-
-        fn qc_round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) -> bool {
-            round_trips_via_frame_header(is_text, mask, data);
-            true
-        }
     }
 }

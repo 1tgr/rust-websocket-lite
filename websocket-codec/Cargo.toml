@@ -17,7 +17,9 @@ bytes = "0.5"
 httparse = "1"
 rand = "0.7"
 sha1 = "0.6"
-tokio-util = {version="0.2", features=["codec"]}
+tokio-util = { version="0.2", features=["codec"] }
 
 [dev-dependencies]
+assert-allocations = { path="../assert-allocations" }
 quickcheck = "0.9"
+quickcheck_macros = "0.9"
