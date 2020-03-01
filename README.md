@@ -1,10 +1,11 @@
-# websocket-lite and websocket-codec
+# websocket-lite
 
 [![Build Status](https://travis-ci.org/1tgr/rust-websocket-lite.svg?branch=master)](https://travis-ci.org/1tgr/rust-websocket-lite)
 
-This repo contains two crates:
+This repo contains three crates:
 - websocket-lite, a fast, low-overhead WebSocket client 
 - websocket-codec, a Tokio codec implementation of the WebSocket protocol
+- hyper-websocket-lite, bindings between a [hyper](https://hyper.rs) server and websocket-codec
 
 ## websocket-lite
 [Documentation](https://docs.rs/websocket-lite)
@@ -24,6 +25,12 @@ This crate is fully conformant with the fuzzingserver module in the
 [Documentation](https://docs.rs/websocket-codec)
 
 This is a standalone crate that does not do any I/O directly. For a full WebSocket client, see the [websocket-lite](https://docs.rs/websocket-lite) crate.
+
+## hyper-websocket-lite
+
+[Documentation](https://docs.rs/hyper-websocket-lite)
+
+Provides the `server_upgrade` function, which bridges a client's HTTP Upgrade request to the WebSocket protocol.
 
 # async/await
 Version 0.3.2 and above use `std` futures and the `async` and `await` keywords. They are based on tokio

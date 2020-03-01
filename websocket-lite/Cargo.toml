@@ -1,7 +1,7 @@
 [package]
 name = "websocket-lite"
 description = "A fast, low-overhead WebSocket client"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
 repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
@@ -38,7 +38,7 @@ tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
 tokio-tls = { version = "0.3", optional = true }
 tokio = {version="0.2", features=["tcp", "io-util"]}
 url = "2"
-websocket-codec = { version = "0.2.2", path = "../websocket-codec" }
+websocket-codec = { version = "0.3.3", path = "../websocket-codec" }
 
 [dev-dependencies]
 structopt = "0.3"
