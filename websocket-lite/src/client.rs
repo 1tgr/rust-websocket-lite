@@ -192,7 +192,7 @@ impl ClientBuilder {
 
         let (opt, framed) = upgrade_codec.framed(stream).into_future().await;
         opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())??;
-        Ok(replace_codec(framed, MessageCodec::new()))
+        Ok(replace_codec(framed, MessageCodec::client()))
     }
 
     /// Takes over an already established stream and uses it to send and receive WebSocket messages.
@@ -208,7 +208,7 @@ impl ClientBuilder {
 
         let mut framed = sync::Framed::new(stream, upgrade_codec);
         framed.receive()?.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
-        Ok(framed.replace_codec(MessageCodec::new()))
+        Ok(framed.replace_codec(MessageCodec::client()))
     }
 
     // Not pub - used by the tests

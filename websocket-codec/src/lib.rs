@@ -22,7 +22,7 @@ mod upgrade;
 
 pub use crate::message::{Message, MessageCodec};
 pub use crate::opcode::Opcode;
-pub use crate::upgrade::UpgradeCodec;
+pub use crate::upgrade::{ClientRequest, UpgradeCodec};
 
 use std::error;
 use std::result;

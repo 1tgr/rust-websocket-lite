@@ -18,6 +18,7 @@ FROM deps as build
 
 COPY Cargo.toml Cargo.lock ./
 COPY assert-allocations/Cargo.toml assert-allocations/
+COPY hyper-websocket-lite/Cargo.toml hyper-websocket-lite/
 COPY websocket-codec/Cargo.toml websocket-codec/
 COPY websocket-lite/Cargo.toml websocket-lite/
 RUN cargo fetch
@@ -42,5 +43,6 @@ COPY --from=build \
     /build/target/release/examples/async-autobahn-client \
     /build/target/release/examples/autobahn-client \
     /build/target/release/examples/hello-world-client \
+    /build/target/release/examples/hello-world-server \
     /build/target/release/examples/wsdump \
     ./

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "assert-allocations",
+    "hyper-websocket-lite",
     "websocket-codec",
     "websocket-lite"
 ]

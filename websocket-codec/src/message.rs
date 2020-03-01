@@ -47,6 +47,7 @@ impl Message {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn header(&self, mask: Option<Mask>) -> FrameHeader {
         FrameHeader {
             fin: true,
@@ -132,16 +133,21 @@ pub struct MessageCodec {
 }
 
 impl MessageCodec {
-    /// Creates a `MessageCodec`.
-    pub fn new() -> Self {
-        Self {
-            use_mask: true,
-            interrupted_message: None,
-        }
+    /// Creates a `MessageCodec` for a client.
+    ///
+    /// Encoded messages are masked.
+    pub fn client() -> Self {
+        Self::with_masked_encode(true)
+    }
+
+    /// Creates a `MessageCodec` for a server.
+    ///
+    /// Encoded messages are not masked.
+    pub fn server() -> Self {
+        Self::with_masked_encode(false)
     }
 
     /// Creates a `MessageCodec` while specifying whether to use message masking while encoding.
-    /// The default behavior is to use message masking while encoding.
     pub fn with_masked_encode(use_mask: bool) -> Self {
         Self {
             use_mask,
@@ -271,7 +277,7 @@ mod tests {
         assert_allocated_bytes(frame_len, {
             let message = message.clone();
             || {
-                MessageCodec::new()
+                MessageCodec::client()
                     .encode(message, &mut bytes)
                     .expect("didn't expect MessageCodec::encode to return an error")
             }
@@ -282,7 +288,7 @@ mod tests {
         let mut src = bytes.split();
 
         let message2 = assert_allocated_bytes(0, || {
-            MessageCodec::new()
+            MessageCodec::client()
                 .decode(&mut src)
                 .expect("didn't expect MessageCodec::decode to return an error")
                 .expect("expected buffer to contain the full frame")
@@ -320,7 +326,7 @@ mod tests {
         let mut src = bytes.split();
 
         assert_allocated_bytes(0, || {
-            let message2 = MessageCodec::new()
+            let message2 = MessageCodec::client()
                 .decode(&mut src)
                 .expect("didn't expect MessageCodec::decode to return an error")
                 .expect("expected buffer to contain the full frame");
@@ -339,7 +345,7 @@ mod tests {
         };
 
         let mut bytes = BytesMut::new();
-        MessageCodec::new()
+        MessageCodec::client()
             .encode(message.clone(), &mut bytes)
             .expect("didn't expect MessageCodec::encode to return an error");
 
@@ -348,7 +354,7 @@ mod tests {
         // allocations as decoder_buf is resized multiple times.
 
         let mut src = &bytes[..];
-        let mut decoder = MessageCodec::new();
+        let mut decoder = MessageCodec::client();
         let mut decoder_buf = BytesMut::new();
         let message2 = loop {
             if let Some(result) = decoder

@@ -7,18 +7,23 @@ services:
       - ./config:/config:ro
       - ./reports:/reports
 
-  hello-world-server:
+  python-hello-world-server:
     image: python:3.8
     command: bash -c "pip install -r /app/requirements.txt && python /app/hello_world_server.py"
     volumes:
       - .:/app
+
+  hyper-hello-world-server:
+    image: 1tgr/websocket-lite
+    command: ./hello-world-server 9001
 
   test:
     image: 1tgr/websocket-lite
     command: ./test.sh
     depends_on:
       - fuzzingserver
-      - hello-world-server
+      - python-hello-world-server
+      - hyper-hello-world-server
     volumes:
       - ./reports:/reports:ro
       - ./test.sh:/app/test.sh

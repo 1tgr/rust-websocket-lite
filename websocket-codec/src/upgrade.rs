@@ -10,6 +10,15 @@ use tokio_util::codec::{Decoder, Encoder};
 
 use crate::{Error, Result};
 
+type Sha1Digest = [u8; sha1::DIGEST_LENGTH];
+
+fn build_ws_accept(key: &str) -> Sha1Digest {
+    let mut s = Sha1::new();
+    s.update(key.as_bytes());
+    s.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+    s.digest().bytes()
+}
+
 fn header<'a, 'header: 'a>(headers: &'a [Header<'header>], name: &'a str) -> result::Result<&'header [u8], String> {
     let header = headers
         .iter()
@@ -19,7 +28,7 @@ fn header<'a, 'header: 'a>(headers: &'a [Header<'header>], name: &'a str) -> res
     Ok(header.value)
 }
 
-fn validate(expected_ws_accept: &[u8; sha1::DIGEST_LENGTH], data: &[u8]) -> Result<Option<usize>> {
+fn validate_server_response(expected_ws_accept: &Sha1Digest, data: &[u8]) -> Result<Option<usize>> {
     let mut headers = [httparse::EMPTY_HEADER; 20];
     let mut response = Response::new(&mut headers);
     let status = response.parse(data)?;
@@ -34,7 +43,7 @@ fn validate(expected_ws_accept: &[u8; sha1::DIGEST_LENGTH], data: &[u8]) -> Resu
     }
 
     let ws_accept_header = header(response.headers, "Sec-WebSocket-Accept")?;
-    let mut ws_accept = [0; sha1::DIGEST_LENGTH];
+    let mut ws_accept = Sha1Digest::default();
     base64::decode_config_slice(&ws_accept_header, base64::STANDARD, &mut ws_accept)?;
     if expected_ws_accept != &ws_accept {
         return Err(format!(
@@ -48,9 +57,56 @@ fn validate(expected_ws_accept: &[u8; sha1::DIGEST_LENGTH], data: &[u8]) -> Resu
     Ok(Some(response_len))
 }
 
+/// A client's opening handshake.
+pub struct ClientRequest {
+    ws_accept: Sha1Digest,
+}
+
+impl ClientRequest {
+    /// Parses the client's opening handshake.
+    pub fn parse<'a, F>(mut header: F) -> Result<Self>
+    where
+        F: FnMut(&'static str) -> Option<&'a str> + 'a,
+    {
+        let mut header = |name| header(name).ok_or_else(|| format!("client didn't provide {name} header", name = name));
+
+        let mut check_header = |name, expected| {
+            let actual = header(name)?;
+            if actual == expected {
+                Ok(())
+            } else {
+                Err(format!(
+                    "client provided incorrect {name} header: expected {expected}, got {actual}",
+                    name = name,
+                    expected = expected,
+                    actual = actual
+                ))
+            }
+        };
+
+        check_header("Upgrade", "websocket")?;
+        check_header("Connection", "Upgrade")?;
+        check_header("Sec-WebSocket-Version", "13")?;
+
+        let key = header("Sec-WebSocket-Key")?;
+        let ws_accept = build_ws_accept(key);
+        Ok(Self { ws_accept })
+    }
+
+    /// Copies the value that the client expects to see in the server's `Sec-WebSocket-Accept` header into a `String`.
+    pub fn ws_accept_buf(&self, s: &mut String) {
+        base64::encode_config_buf(&self.ws_accept, base64::STANDARD, s)
+    }
+
+    /// Returns the value that the client expects to see in the server's `Sec-WebSocket-Accept` header.
+    pub fn ws_accept(&self) -> String {
+        base64::encode_config(&self.ws_accept, base64::STANDARD)
+    }
+}
+
 /// Tokio decoder for parsing the server's response to the client's HTTP `Connection: Upgrade` request.
 pub struct UpgradeCodec {
-    ws_accept: [u8; sha1::DIGEST_LENGTH],
+    ws_accept: Sha1Digest,
 }
 
 impl UpgradeCodec {
@@ -58,11 +114,8 @@ impl UpgradeCodec {
     ///
     /// The `key` parameter provides the string passed to the server via the HTTP `Sec-WebSocket-Key` header.
     pub fn new(key: &str) -> Self {
-        let mut s = Sha1::new();
-        s.update(key.as_bytes());
-        s.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
         UpgradeCodec {
-            ws_accept: s.digest().bytes(),
+            ws_accept: build_ws_accept(key),
         }
     }
 }
@@ -72,7 +125,7 @@ impl Decoder for UpgradeCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<()>> {
-        if let Some(response_len) = validate(&self.ws_accept, &src)? {
+        if let Some(response_len) = validate_server_response(&self.ws_accept, &src)? {
             src.advance(response_len);
             Ok(Some(()))
         } else {

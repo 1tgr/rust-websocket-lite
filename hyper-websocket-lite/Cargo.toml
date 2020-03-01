@@ -1,0 +1,22 @@
+[package]
+name = "hyper-websocket-lite"
+description = "WebSocket server implementation on hyper and websocket-lite"
+version = "0.3.2"
+authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
+repository = "https://github.com/1tgr/rust-websocket-lite"
+license = "MIT"
+edition = "2018"
+
+[lib]
+path = "src/lib.rs"
+
+[[example]]
+name = "hello-world-server"
+path = "examples/hello-world-server.rs"
+
+[dependencies]
+futures = "0.3"
+hyper = "0.13"
+websocket-codec = { version = "0.2.2", path = "../websocket-codec" }
+tokio = { version = "0.2", features=["macros"] }
+tokio-util = { version = "0.2", features=["codec"] }
