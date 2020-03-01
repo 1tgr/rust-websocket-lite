@@ -1,0 +1,12 @@
+{
+  "outdir": "./reports/servers",
+  "servers": [
+    {
+      "agent": "rust-websocket-lite",
+      "url": "ws://hyper-autobahn-server:9001"
+    }
+  ],
+  "cases": ["*"],
+  "exclude-cases": [],
+  "exclude-agent-cases": {}
+}

@@ -11,6 +11,10 @@ edition = "2018"
 path = "src/lib.rs"
 
 [[example]]
+name = "autobahn-server"
+path = "examples/autobahn-server.rs"
+
+[[example]]
 name = "hello-world-server"
 path = "examples/hello-world-server.rs"
 

@@ -72,7 +72,7 @@ impl ClientRequest {
 
         let mut check_header = |name, expected| {
             let actual = header(name)?;
-            if actual == expected {
+            if actual.eq_ignore_ascii_case(expected) {
                 Ok(())
             } else {
                 Err(format!(

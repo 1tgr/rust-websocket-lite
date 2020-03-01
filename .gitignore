@@ -8,3 +8,4 @@
 # Detailed test reports from autobahn. We keep the JSON-format reports.
 /reports/
 !/reports/clients/index.json
+!/reports/servers/index.json

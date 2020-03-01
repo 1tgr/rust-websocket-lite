@@ -35,13 +35,23 @@ RUN apt-get -y update
 RUN apt-get -y install \
     ca-certificates \
     netcat \
-    openssl
+    openssl \
+    python-pip \
+    python2.7 \
+    python3-pip
+
+RUN pip2 install \
+    autobahntestsuite
+
+RUN pip3 install \
+    websockets
 
 WORKDIR /app
 
 COPY --from=build \
     /build/target/release/examples/async-autobahn-client \
     /build/target/release/examples/autobahn-client \
+    /build/target/release/examples/autobahn-server \
     /build/target/release/examples/hello-world-client \
     /build/target/release/examples/hello-world-server \
     /build/target/release/examples/wsdump \
