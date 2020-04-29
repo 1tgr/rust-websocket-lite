@@ -27,7 +27,7 @@ name = "wsdump"
 path = "examples/wsdump.rs"
 
 [dependencies]
-base64 = "0.11"
+base64 = "0.12"
 bytes = "0.5"
 futures = "0.3"
 native-tls = { version = "0.2", optional = true }
