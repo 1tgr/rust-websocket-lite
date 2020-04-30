@@ -134,8 +134,7 @@ impl Decoder for UpgradeCodec {
     }
 }
 
-impl Encoder for UpgradeCodec {
-    type Item = ();
+impl Encoder<()> for UpgradeCodec {
     type Error = Error;
 
     fn encode(&mut self, _item: (), _dst: &mut BytesMut) -> Result<()> {
