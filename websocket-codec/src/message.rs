@@ -221,8 +221,7 @@ impl Decoder for MessageCodec {
     }
 }
 
-impl Encoder for MessageCodec {
-    type Item = Message;
+impl Encoder<Message> for MessageCodec {
     type Error = Error;
 
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<()> {

@@ -31,8 +31,11 @@ impl<S, C> Framed<S, C> {
     }
 }
 
-impl<S: Write, C: Encoder> Framed<S, C> {
-    pub fn send(&mut self, item: C::Item) -> Result<(), C::Error> {
+impl<S: Write, C> Framed<S, C> {
+    pub fn send<Item>(&mut self, item: Item) -> Result<(), C::Error>
+    where
+        C: Encoder<Item>,
+    {
         self.write_buf.truncate(0);
         self.codec.encode(item, &mut self.write_buf)?;
         self.stream.write_all(&self.write_buf)?;
