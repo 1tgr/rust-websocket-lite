@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+<script>
+  let s = new WebSocket("ws://localhost:9001");
+  s.onmessage = function(event) {
+    console.log(event.data);
+    s.close();
+  };
+</script>
+</body>
+</html>

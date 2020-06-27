@@ -57,6 +57,22 @@ fn validate_server_response(expected_ws_accept: &Sha1Digest, data: &[u8]) -> Res
     Ok(Some(response_len))
 }
 
+fn contains_ignore_ascii_case(mut haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+
+    while haystack.len() >= needle.len() {
+        if haystack[..needle.len()].eq_ignore_ascii_case(needle) {
+            return true;
+        }
+
+        haystack = &haystack[1..];
+    }
+
+    false
+}
+
 /// A client's opening handshake.
 pub struct ClientRequest {
     ws_accept: Sha1Digest,
@@ -64,13 +80,13 @@ pub struct ClientRequest {
 
 impl ClientRequest {
     /// Parses the client's opening handshake.
-    pub fn parse<'a, F>(mut header: F) -> Result<Self>
+    pub fn parse<'a, F>(header: F) -> Result<Self>
     where
-        F: FnMut(&'static str) -> Option<&'a str> + 'a,
+        F: Fn(&'static str) -> Option<&'a str> + 'a,
     {
-        let mut header = |name| header(name).ok_or_else(|| format!("client didn't provide {name} header", name = name));
+        let header = |name| header(name).ok_or_else(|| format!("client didn't provide {name} header", name = name));
 
-        let mut check_header = |name, expected| {
+        let check_header = |name, expected| {
             let actual = header(name)?;
             if actual.eq_ignore_ascii_case(expected) {
                 Ok(())
@@ -84,8 +100,22 @@ impl ClientRequest {
             }
         };
 
+        let check_header_contains = |name, expected: &str| {
+            let actual = header(name)?;
+            if contains_ignore_ascii_case(actual.as_bytes(), expected.as_bytes()) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "client provided incorrect {name} header: expected string containing {expected}, got {actual}",
+                    name = name,
+                    expected = expected,
+                    actual = actual
+                ))
+            }
+        };
+
         check_header("Upgrade", "websocket")?;
-        check_header("Connection", "Upgrade")?;
+        check_header_contains("Connection", "Upgrade")?;
         check_header("Sec-WebSocket-Version", "13")?;
 
         let key = header("Sec-WebSocket-Key")?;
@@ -139,5 +169,25 @@ impl Encoder<()> for UpgradeCodec {
 
     fn encode(&mut self, _item: (), _dst: &mut BytesMut) -> Result<()> {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::upgrade::contains_ignore_ascii_case;
+
+    #[test]
+    fn does_not_contain() {
+        assert!(!contains_ignore_ascii_case(b"World", b"hello"));
+    }
+
+    #[test]
+    fn contains_exact() {
+        assert!(contains_ignore_ascii_case(b"Hello", b"hello"));
+    }
+
+    #[test]
+    fn contains_substring() {
+        assert!(contains_ignore_ascii_case(b"Hello World", b"hello"));
     }
 }
