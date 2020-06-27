@@ -19,6 +19,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cb544f1057eaaff4b34f8c4dcf56fc3cd04debd291998405d135017a7c3c0f4"
+
+[[package]]
 name = "assert-allocations"
 version = "0.1.0"
 
@@ -439,6 +445,16 @@ name = "libc"
 version = "0.2.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d515b1f41455adea1313a4a2ac8a8a477634fbae63cc6100e3aebb207ce61558"
+
+[[package]]
+name = "libfuzzer-sys"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d718794b8e23533b9069bd2c4597d69e41cc7ab1c02700a502971aca0cdcf24"
+dependencies = [
+ "arbitrary",
+ "cc",
+]
 
 [[package]]
 name = "log"
@@ -1136,6 +1152,16 @@ dependencies = [
  "rand",
  "sha1",
  "tokio-util",
+]
+
+[[package]]
+name = "websocket-codec-fuzz"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "libfuzzer-sys",
+ "tokio-util",
+ "websocket-codec",
 ]
 
 [[package]]

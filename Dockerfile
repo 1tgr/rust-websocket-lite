@@ -18,6 +18,7 @@ FROM deps as build
 
 COPY Cargo.toml Cargo.lock ./
 COPY assert-allocations/Cargo.toml assert-allocations/
+COPY fuzz/Cargo.toml fuzz/
 COPY hyper-websocket-lite/Cargo.toml hyper-websocket-lite/
 COPY websocket-codec/Cargo.toml websocket-codec/
 COPY websocket-lite/Cargo.toml websocket-lite/

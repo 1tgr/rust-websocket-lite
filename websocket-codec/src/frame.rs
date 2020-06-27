@@ -97,10 +97,11 @@ impl FrameHeader {
 
         let data_start = c.position() as usize;
 
-        Ok(Some((
-            FrameHeader { fin, opcode, mask, len },
-            data_start..data_start + len,
-        )))
+        let data_end = data_start
+            .checked_add(len)
+            .ok_or_else(|| format!("Frame is too long: {} bytes", len))?;
+
+        Ok(Some((FrameHeader { fin, opcode, mask, len }, data_start..data_end)))
     }
 
     pub(crate) fn frame_len(&self) -> usize {

@@ -176,7 +176,10 @@ impl Decoder for MessageCodec {
             if data_range.end > src.len() {
                 // The buffer contains the frame header but it's not big enough for the data. Reserve additional
                 // space for the frame data, plus the next frame header.
-                src.reserve(data_range.end + 512);
+                // Note that we guard against bad data that indicates an unreasonable frame length.
+                // If somebody is sending more than a gigabyte of data in a single frame then we'll still try to
+                // receive it, we'll just reserve in 1GB chunks.
+                src.reserve(data_range.end.min(0x4000_0000) + 512);
                 self.interrupted_message = state;
                 return Ok(None);
             }
@@ -371,5 +374,34 @@ mod tests {
         };
 
         assert_eq!(message, message2);
+    }
+
+    #[test]
+    fn frame_bigger_than_2_64_does_not_panic() {
+        // A frame with data longer than 2^64 bytes is bigger than the entire address space,
+        // when the header is included.
+        let data: &[u8] = &[0, 127, 255, 255, 255, 255, 255, 255, 255, 255];
+        let mut data = BytesMut::from(data);
+        let message = MessageCodec::client()
+            .decode(&mut data)
+            .expect_err("expected decoder to return an error given a frame bigger than 2^64 bytes");
+
+        assert_eq!(message.to_string(), "Frame is too long: 18446744073709551615 bytes");
+    }
+
+    #[test]
+    fn frame_bigger_than_2_40_does_not_panic() {
+        // A frame longer than 2^40 bytes causes Vec::extend to trigger an error in
+        // the AddressSanitizer.
+        let data: &[u8] = &[0, 255, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 0];
+        let mut data = BytesMut::from(data);
+        let message = MessageCodec::client()
+            .decode(&mut data)
+            .expect("didn't expect MessageCodec::decode to return an error");
+
+        assert_eq!(
+            message, None,
+            "didn't expect a 14 byte packet to contain 2^40 bytes of data"
+        );
     }
 }
