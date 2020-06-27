@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "hyper-websocket-lite"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "futures",
  "hyper",
@@ -1140,7 +1140,7 @@ checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "websocket-codec"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "assert-allocations",
  "base64",
@@ -1166,7 +1166,7 @@ dependencies = [
 
 [[package]]
 name = "websocket-lite"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "base64",
  "bytes",
