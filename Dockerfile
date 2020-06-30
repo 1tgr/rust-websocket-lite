@@ -13,6 +13,10 @@ COPY rust-toolchain .
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $(cat rust-toolchain)
 ENV PATH=$PATH:/root/.cargo/bin
 RUN rustup component add clippy
+RUN cargo install cargo-fuzz
+
+COPY rust-nightly-toolchain .
+RUN rustup toolchain install $(cat rust-toolchain)
 
 FROM deps as build
 
@@ -26,8 +30,13 @@ RUN cargo fetch
 
 COPY . .
 RUN cargo test --release
-RUN cargo build --release
+RUN cargo build --release --workspace --exclude fuzz
 RUN cargo clippy --release
+
+FROM build as fuzz
+
+RUN mv rust-nightly-toolchain rust-toolchain
+RUN cargo fuzz run fuzz_codec fuzz/corpus/custom -- -dict=fuzz/dict.txt -max_total_time=60
 
 FROM ubuntu:bionic-20200526 as app
 

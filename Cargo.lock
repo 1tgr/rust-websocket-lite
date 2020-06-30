@@ -267,6 +267,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuzz"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "libfuzzer-sys",
+ "tokio-util",
+ "websocket-codec",
+]
+
+[[package]]
 name = "generator"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1152,16 +1162,6 @@ dependencies = [
  "rand",
  "sha1",
  "tokio-util",
-]
-
-[[package]]
-name = "websocket-codec-fuzz"
-version = "0.0.0"
-dependencies = [
- "bytes",
- "libfuzzer-sys",
- "tokio-util",
- "websocket-codec",
 ]
 
 [[package]]

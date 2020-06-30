@@ -1,5 +1,5 @@
 [package]
-name = "websocket-codec-fuzz"
+name = "fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
