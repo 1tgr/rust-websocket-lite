@@ -21,5 +21,11 @@ tokio-util = { version="0.3", features=["codec"] }
 
 [dev-dependencies]
 assert-allocations = { path="../assert-allocations" }
+criterion = "0.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+
+[[bench]]
+name = "bench"
+path = "benches/bench.rs"
+harness = false
