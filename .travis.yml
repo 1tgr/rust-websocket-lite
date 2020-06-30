@@ -10,6 +10,7 @@ before_script:
 
 script:
   - docker build --target app -t 1tgr/websocket-lite:latest . && docker-compose up --exit-code-from test
+  - docker build --target fuzz -t 1tgr/websocket-lite-fuzz:latest . && docker run --cap-add SYS_PTRACE 1tgr/websocket-lite-fuzz:latest cargo fuzz run fuzz_codec fuzz/corpus/custom -- -dict=fuzz/dict.txt -max_total_time=60
 
 after_script:
   - docker tag 1tgr/websocket-lite:latest 1tgr/websocket-lite:${TRAVIS_BRANCH}

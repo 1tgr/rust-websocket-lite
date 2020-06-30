@@ -18,7 +18,7 @@ RUN cargo install cargo-fuzz
 COPY rust-nightly-toolchain .
 RUN rustup toolchain install $(cat rust-toolchain)
 
-FROM deps as build
+FROM deps as src
 
 COPY Cargo.toml Cargo.lock ./
 COPY assert-allocations/Cargo.toml assert-allocations/
@@ -29,14 +29,17 @@ COPY websocket-lite/Cargo.toml websocket-lite/
 RUN cargo fetch
 
 COPY . .
+
+FROM src as build
+
 RUN cargo test --release
 RUN cargo build --release --workspace --exclude fuzz
 RUN cargo clippy --release
 
-FROM build as fuzz
+FROM src as fuzz
 
 RUN mv rust-nightly-toolchain rust-toolchain
-RUN cargo fuzz run fuzz_codec fuzz/corpus/custom -- -dict=fuzz/dict.txt -max_total_time=60
+RUN cargo fuzz build
 
 FROM ubuntu:bionic-20200526 as app
 
