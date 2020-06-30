@@ -228,6 +228,14 @@ impl Encoder<Message> for MessageCodec {
     type Error = Error;
 
     fn encode(&mut self, item: Message, dst: &mut BytesMut) -> Result<()> {
+        self.encode(&item, dst)
+    }
+}
+
+impl<'a> Encoder<&'a Message> for MessageCodec {
+    type Error = Error;
+
+    fn encode(&mut self, item: &Message, dst: &mut BytesMut) -> Result<()> {
         let mask = if self.use_mask { Some(Mask::new()) } else { None };
 
         let header = FrameHeader {
@@ -277,10 +285,9 @@ mod tests {
         let frame_len = message.header(Some(Mask::new())).frame_len();
         let mut bytes = BytesMut::new();
         assert_allocated_bytes(frame_len, {
-            let message = message.clone();
             || {
                 MessageCodec::client()
-                    .encode(message, &mut bytes)
+                    .encode(&message, &mut bytes)
                     .expect("didn't expect MessageCodec::encode to return an error")
             }
         });
@@ -348,7 +355,7 @@ mod tests {
 
         let mut bytes = BytesMut::new();
         MessageCodec::client()
-            .encode(message.clone(), &mut bytes)
+            .encode(&message, &mut bytes)
             .expect("didn't expect MessageCodec::encode to return an error");
 
         // We don't check allocations around the MessageCodec::decode call below. We're deliberately

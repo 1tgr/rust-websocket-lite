@@ -11,7 +11,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt},
     net::TcpStream as TokioTcpStream,
 };
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::{Decoder, Framed};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
@@ -19,11 +19,9 @@ use crate::ssl;
 use crate::sync;
 use crate::{AsyncClient, AsyncNetworkStream, Client, MessageCodec, NetworkStream, Result};
 
-fn replace_codec<T, C1, C2, Item1, Item2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
+fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
 where
     T: AsyncRead + AsyncWrite,
-    C1: Encoder<Item1> + Decoder,
-    C2: Encoder<Item2> + Decoder,
 {
     // TODO improve this? https://github.com/tokio-rs/tokio/issues/717
     let parts1 = framed.into_parts();
