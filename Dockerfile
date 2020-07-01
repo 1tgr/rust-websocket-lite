@@ -32,6 +32,7 @@ COPY . .
 
 FROM src as build
 
+ENV RUSTFLAGS=-Dwarnings
 RUN cargo test --release
 RUN cargo build --release --workspace --exclude fuzz
 RUN cargo clippy --release

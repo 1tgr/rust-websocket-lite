@@ -1,5 +1,4 @@
 #![deny(rust_2018_idioms)]
-#![deny(warnings)]
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::RefCell;

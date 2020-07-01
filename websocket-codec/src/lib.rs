@@ -1,6 +1,5 @@
-#![deny(missing_docs)]
-#![deny(rust_2018_idioms)]
-#![deny(warnings)]
+#![warn(missing_docs)]
+#![warn(rust_2018_idioms)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 //! A Tokio codec implementation of the WebSocket protocol.

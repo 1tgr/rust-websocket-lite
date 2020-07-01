@@ -1,5 +1,4 @@
 #![deny(rust_2018_idioms)]
-#![deny(warnings)]
 
 use futures::{SinkExt, StreamExt};
 use hyper::service::{make_service_fn, service_fn};
