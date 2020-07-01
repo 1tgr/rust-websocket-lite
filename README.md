@@ -1,6 +1,6 @@
 # websocket-lite
 
-[![Build Status](https://travis-ci.org/1tgr/rust-websocket-lite.svg?branch=master)](https://travis-ci.org/1tgr/rust-websocket-lite)
+![CI](https://github.com/1tgr/rust-websocket-lite/workflows/CI/badge.svg)
 
 This repo contains three crates:
 - websocket-lite, a fast, low-overhead WebSocket client 

@@ -7,17 +7,6 @@ repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 edition = "2018"
 
-[lib]
-path = "src/lib.rs"
-
-[[example]]
-name = "autobahn-server"
-path = "examples/autobahn-server.rs"
-
-[[example]]
-name = "hello-world-server"
-path = "examples/hello-world-server.rs"
-
 [dependencies]
 futures = "0.3"
 hyper = "0.13"

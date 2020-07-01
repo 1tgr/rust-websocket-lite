@@ -1,0 +1,72 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  cargo-build:
+    name: cargo build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Docker Hub login
+      run: docker login --username 1tgr --password ${DOCKER_HUB_TOKEN}
+      env:
+        DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+    - name: Pull previous deps
+      run: docker pull 1tgr/websocket-lite-deps
+    - name: Build deps
+      run: docker build --cache-from 1tgr/websocket-lite-deps --target deps -t 1tgr/websocket-lite-deps:latest .
+    - name: Pull previous build
+      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest || true
+    - name: cargo build
+      run: docker build --cache-from 1tgr/websocket-lite-deps --cache-from 1tgr/websocket-lite-build --build-arg BUILDKIT_INLINE_CACHE=1 --target build -t 1tgr/websocket-lite-build:${GITHUB_REF##*/} .
+    - name: Push current build
+      run: docker push 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+
+  cargo-test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    needs: cargo-build
+    steps:
+    - uses: actions/checkout@v2
+    - name: Pull current build
+      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+    - name: cargo test
+      run: docker run 1tgr/websocket-lite-build cargo test --release
+
+  cargo-clippy:
+    name: cargo clippy
+    runs-on: ubuntu-latest
+    needs: cargo-build
+    steps:
+    - uses: actions/checkout@v2
+    - name: Pull current build
+      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+    - name: cargo clippy
+      run: docker run 1tgr/websocket-lite-build cargo clippy --release
+
+  integration-test:
+    name: Integration test
+    runs-on: ubuntu-latest
+    needs: cargo-build
+    steps:
+    - uses: actions/checkout@v2
+    - name: Pull current build
+      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+    - name: Build integration test
+      run: docker build --cache-from 1tgr/websocket-lite-build --target app -t 1tgr/websocket-lite:latest .
+    - name: Integration test
+      run: docker-compose up --exit-code-from test
+
+  fuzz-test:
+    name: Fuzz test
+    runs-on: ubuntu-latest
+    needs: cargo-build
+    steps:
+    - uses: actions/checkout@v2
+    - name: Pull current build
+      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+    - name: Build fuzz test
+      run: docker build --cache-from 1tgr/websocket-lite-build --target fuzz -t 1tgr/websocket-lite-fuzz:latest .
+    - name: Fuzz test
+      run: docker run --cap-add SYS_PTRACE 1tgr/websocket-lite-fuzz:latest cargo fuzz run fuzz_codec fuzz/corpus/custom -- -dict=fuzz/dict.txt -max_total_time=60

@@ -5,6 +5,3 @@ authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
 repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 edition = "2018"
-
-[lib]
-path = "src/lib.rs"

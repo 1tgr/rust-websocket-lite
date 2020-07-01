@@ -1,6 +1,6 @@
 .dockerignore
 .git/
-.travis.yml
+.github/
 cache/
 docker-compose.yml
 Dockerfile
@@ -9,4 +9,5 @@ LICENSE
 README.md
 reports/
 target/
+test.html
 test.sh

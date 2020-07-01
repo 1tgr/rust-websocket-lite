@@ -7,9 +7,6 @@ repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
 edition = "2018"
 
-[lib]
-path = "src/lib.rs"
-
 [dependencies]
 base64 = "0.12"
 byteorder = "1"
@@ -28,5 +25,4 @@ structopt = "0.3"
 
 [[bench]]
 name = "bench"
-path = "benches/bench.rs"
 harness = false
