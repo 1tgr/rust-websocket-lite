@@ -24,6 +24,7 @@ assert-allocations = { path="../assert-allocations" }
 criterion = "0.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
+structopt = "0.3"
 
 [[bench]]
 name = "bench"

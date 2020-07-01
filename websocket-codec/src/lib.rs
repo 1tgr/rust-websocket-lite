@@ -19,6 +19,8 @@ mod message;
 mod opcode;
 mod upgrade;
 
+pub mod protocol;
+
 pub use crate::message::{Message, MessageCodec};
 pub use crate::opcode::Opcode;
 pub use crate::upgrade::{ClientRequest, UpgradeCodec};

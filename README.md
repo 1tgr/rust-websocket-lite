@@ -8,7 +8,7 @@ This repo contains three crates:
 - hyper-websocket-lite, bindings between a [hyper](https://hyper.rs) server and websocket-codec
 
 ## websocket-lite
-[Documentation](https://docs.rs/websocket-lite)
+[Documentation](https://docs.rs/websocket-lite) | [Source](websocket-lite/src)
 
 This crate is optimised for receiving a high volume of messages over a long period. A key feature is that it makes
 no memory allocations once the connection is set up and the initial messages have been sent and received; it reuses
@@ -22,15 +22,26 @@ This crate is fully conformant with the fuzzingserver module in the
 
 ## websocket-codec
 
-[Documentation](https://docs.rs/websocket-codec)
+[Documentation](https://docs.rs/websocket-codec) | [Source](websocket-codec/src)
 
 This is a standalone crate that does not do any I/O directly. For a full WebSocket client, see the [websocket-lite](https://docs.rs/websocket-lite) crate.
 
 ## hyper-websocket-lite
 
-[Documentation](https://docs.rs/hyper-websocket-lite)
+[Documentation](https://docs.rs/hyper-websocket-lite) | [Source](hyper-websocket-lite/src)
 
 Provides the `server_upgrade` function, which bridges a client's HTTP Upgrade request to the WebSocket protocol.
+
+## Additional command line tools
+
+- [`wsinspect`](websocket-codec/examples/wsinspect.rs): views the protocol-level WebSocket frame data from a binary file.
+  ```
+  cargo run --example wsinspect -- --help
+  ```
+- [`wsdump`](websocket-lite/examples/wsdump.rs): a basic replica of the [`wsdump` tool found in the `websocket-client` Python package](https://github.com/websocket-client/websocket-client/blob/master/bin/wsdump.py).
+  ```
+  cargo run --example wsdump -- --help
+  ```
 
 # async/await
 Version 0.3.2 and above use `std` futures and the `async` and `await` keywords. They are based on tokio

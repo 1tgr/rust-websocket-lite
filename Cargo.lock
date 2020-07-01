@@ -1555,6 +1555,7 @@ dependencies = [
  "quickcheck_macros",
  "rand",
  "sha1",
+ "structopt",
  "tokio-util",
 ]
 

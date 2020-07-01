@@ -1,13 +1,16 @@
 use std::mem;
 use std::result;
 use std::str::{self, Utf8Error};
+use std::usize;
 
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::frame::FrameHeader;
+use crate::frame::{FrameHeader, FrameHeaderCodec};
 use crate::mask::{self, Mask};
-use crate::{Error, Opcode, Result};
+use crate::opcode::Opcode;
+use crate::{Error, Result};
+use std::convert::TryFrom;
 
 /// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -47,13 +50,13 @@ impl Message {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn header(&self, mask: Option<Mask>) -> FrameHeader {
         FrameHeader {
             fin: true,
-            opcode: Some(self.opcode),
+            rsv: 0,
+            opcode: self.opcode.into(),
             mask,
-            len: self.data.len(),
+            data_len: self.data.len().into(),
         }
     }
 
@@ -128,6 +131,7 @@ impl Message {
 /// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
 #[derive(Clone)]
 pub struct MessageCodec {
+    interrupted_header: Option<FrameHeader>,
     interrupted_message: Option<(Opcode, BytesMut)>,
     use_mask: bool,
 }
@@ -151,6 +155,7 @@ impl MessageCodec {
     pub fn with_masked_encode(use_mask: bool) -> Self {
         Self {
             use_mask,
+            interrupted_header: None,
             interrupted_message: None,
         }
     }
@@ -162,9 +167,11 @@ impl Decoder for MessageCodec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>> {
         let mut state = mem::replace(&mut self.interrupted_message, None);
-        loop {
-            let (header, data_range) = if let Some(tuple) = FrameHeader::validate(&src)? {
-                tuple
+        let (opcode, data) = loop {
+            let header = if let Some(header) = self.interrupted_header.take() {
+                header
+            } else if let Some(header) = FrameHeaderCodec.decode(src)? {
+                header
             } else {
                 // The buffer isn't big enough for the frame header. Reserve additional space for a frame header,
                 // plus reasonable extensions.
@@ -173,45 +180,86 @@ impl Decoder for MessageCodec {
                 return Ok(None);
             };
 
-            if data_range.end > src.len() {
+            let data_len = usize::try_from(header.data_len)?;
+            if data_len > src.remaining() {
                 // The buffer contains the frame header but it's not big enough for the data. Reserve additional
                 // space for the frame data, plus the next frame header.
                 // Note that we guard against bad data that indicates an unreasonable frame length.
-                // If somebody is sending more than a gigabyte of data in a single frame then we'll still try to
-                // receive it, we'll just reserve in 1GB chunks.
-                src.reserve(data_range.end.min(0x4000_0000) + 512);
+
+                // If we reserved buffer space for the entire frame data in a single call, would the buffer exceed
+                // usize::MAX bytes in size?
+                // On a 64-bit platform we should not reach here as the usize::try_from line above enforces the
+                // max payload length detailed in the RFC of 2^63 bytes.
+                if data_len > usize::MAX - src.remaining() {
+                    return Err(format!("frame is too long: {} bytes ({:x})", data_len, data_len).into());
+                }
+
+                // We don't really reserve space for the entire frame data in a single call. If somebody is sending
+                // more than a gigabyte of data in a single frame then we'll still try to receive it, we'll just
+                // reserve in 1GB chunks.
+                src.reserve(data_len.min(0x4000_0000) + 512);
+
+                self.interrupted_header = Some(header);
                 self.interrupted_message = state;
                 return Ok(None);
             }
 
             // The buffer contains the frame header and all of the data. We can parse it and return Ok(Some(...)).
+            let mut data = src.split_to(data_len);
 
-            let mut data = src.split_to(data_range.end).split_off(data_range.start);
-            if let Some(mask) = header.mask {
+            let FrameHeader {
+                fin,
+                rsv,
+                opcode,
+                mask,
+                data_len: _data_len,
+            } = header;
+
+            if rsv != 0 {
+                return Err(format!("reserved bits are not supported: 0x{:x}", rsv).into());
+            }
+
+            if let Some(mask) = mask {
                 // Note: clients never need decode masked messages because masking is only used for client -> server frames.
                 // However this code is used to test round tripping of masked messages.
                 mask::mask_slice(&mut data, mask)
             };
+
+            let opcode = if opcode == 0 {
+                None
+            } else {
+                let opcode = Opcode::try_from(opcode).ok_or_else(|| format!("opcode {} is not supported", opcode))?;
+                if opcode.is_control() && data_len >= 126 {
+                    return Err(format!(
+                        "control frames must be shorter than 126 bytes ({} bytes is too long)",
+                        data_len
+                    )
+                    .into());
+                }
+
+                Some(opcode)
+            };
+
             state = if let Some((partial_opcode, mut partial_data)) = state {
-                if let Some(opcode) = header.opcode {
-                    if header.fin && opcode.is_control() {
+                if let Some(opcode) = opcode {
+                    if fin && opcode.is_control() {
                         self.interrupted_message = Some((partial_opcode, partial_data));
-                        return Ok(Some(Message::new(opcode, data.freeze())?));
+                        break (opcode, data);
                     }
 
                     return Err(format!("continuation frame must have continuation opcode, not {:?}", opcode).into());
                 } else {
                     partial_data.extend_from_slice(&data);
 
-                    if header.fin {
-                        return Ok(Some(Message::new(partial_opcode, partial_data.freeze())?));
+                    if fin {
+                        break (partial_opcode, partial_data);
                     }
 
                     Some((partial_opcode, partial_data))
                 }
-            } else if let Some(opcode) = header.opcode {
-                if header.fin {
-                    return Ok(Some(Message::new(opcode, data.freeze())?));
+            } else if let Some(opcode) = opcode {
+                if fin {
+                    break (opcode, data);
                 }
                 if opcode.is_control() {
                     return Err("control frames must not be fragmented".into());
@@ -220,7 +268,9 @@ impl Decoder for MessageCodec {
             } else {
                 return Err("continuation must not be first frame".into());
             }
-        }
+        };
+
+        Ok(Some(Message::new(opcode, data.freeze())?))
     }
 }
 
@@ -237,18 +287,10 @@ impl<'a> Encoder<&'a Message> for MessageCodec {
 
     fn encode(&mut self, item: &Message, dst: &mut BytesMut) -> Result<()> {
         let mask = if self.use_mask { Some(Mask::new()) } else { None };
+        let header = item.header(mask);
+        FrameHeaderCodec.encode(&header, dst)?;
 
-        let header = FrameHeader {
-            fin: true,
-            opcode: Some(item.opcode),
-            mask,
-            len: item.data.len(),
-        };
-
-        dst.reserve(header.frame_len());
-        header.write_to(dst);
-
-        if let Some(mask) = header.mask {
+        if let Some(mask) = mask {
             let offset = dst.len();
             dst.resize(offset + item.data.len(), 0);
             mask::mask_slice_copy(&mut dst[offset..], &item.data, mask);
@@ -266,14 +308,14 @@ mod tests {
     use bytes::{BufMut, BytesMut};
     use tokio_util::codec::{Decoder, Encoder};
 
-    use crate::frame::FrameHeader;
-    use crate::mask;
-    use crate::mask::Mask;
-    use crate::opcode::Opcode;
-    use crate::{Message, MessageCodec};
+    use crate::frame::{FrameHeader, FrameHeaderCodec};
+    use crate::mask::{self, Mask};
+    use crate::message::{Message, MessageCodec};
 
     #[quickcheck]
     fn round_trips(is_text: bool, data: String) {
+        let data_len = data.len();
+
         let message = assert_allocated_bytes(0, || {
             if is_text {
                 Message::text(data)
@@ -282,7 +324,8 @@ mod tests {
             }
         });
 
-        let frame_len = message.header(Some(Mask::new())).frame_len();
+        let header = message.header(Some(Mask::from(0)));
+        let frame_len = header.header_len() + data_len;
         let mut bytes = BytesMut::new();
         assert_allocated_bytes(frame_len, {
             || {
@@ -311,15 +354,16 @@ mod tests {
         let header = assert_allocated_bytes(0, || {
             FrameHeader {
                 fin: true, // TODO test messages split across frames
-                opcode: Some(if is_text { Opcode::Text } else { Opcode::Binary }),
+                rsv: 0,
+                opcode: if is_text { 1 } else { 2 },
                 mask: mask.map(|n| n.into()),
-                len: data.len(),
+                data_len: data.len().into(),
             }
         });
 
-        let mut bytes = BytesMut::with_capacity(header.frame_len());
+        let mut bytes = BytesMut::with_capacity(header.header_len() + data.len());
         assert_allocated_bytes(0, || {
-            header.write_to(&mut bytes);
+            FrameHeaderCodec.encode(&header, &mut bytes).unwrap();
 
             if let Some(mask) = header.mask {
                 let offset = bytes.len();
@@ -389,11 +433,16 @@ mod tests {
         // when the header is included.
         let data: &[u8] = &[0, 127, 255, 255, 255, 255, 255, 255, 255, 255];
         let mut data = BytesMut::from(data);
+        data.resize(4096, 0);
+
         let message = MessageCodec::client()
             .decode(&mut data)
             .expect_err("expected decoder to return an error given a frame bigger than 2^64 bytes");
 
-        assert_eq!(message.to_string(), "Frame is too long: 18446744073709551615 bytes");
+        assert_eq!(
+            message.to_string(),
+            "frame is too long: 18446744073709551615 bytes (ffffffffffffffff)"
+        );
     }
 
     #[test]
@@ -402,13 +451,15 @@ mod tests {
         // the AddressSanitizer.
         let data: &[u8] = &[0, 255, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 0];
         let mut data = BytesMut::from(data);
+        data.resize(4096, 0);
+
         let message = MessageCodec::client()
             .decode(&mut data)
-            .expect("didn't expect MessageCodec::decode to return an error");
+            .expect_err("expected decoder to return an error given a frame bigger than 2^40 bytes");
 
         assert_eq!(
-            message, None,
-            "didn't expect a 14 byte packet to contain 2^40 bytes of data"
+            message.to_string(),
+            "frame is too long: 18446744069414584575 bytes (ffffffff000000ff)"
         );
     }
 }
