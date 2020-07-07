@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20200526 as deps
+FROM ubuntu:bionic-20200630 as deps
 
 RUN apt-get -y update
 
@@ -65,7 +65,7 @@ FROM build as fuzz
 RUN mv rust-nightly-toolchain rust-toolchain
 RUN cargo fuzz build
 
-FROM ubuntu:bionic-20200526 as app
+FROM ubuntu:bionic-20200630 as app
 
 RUN apt-get -y update
 
