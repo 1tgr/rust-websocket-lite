@@ -288,7 +288,12 @@ impl<'a> Encoder<&'a Message> for MessageCodec {
 
         if let Some(mask) = mask {
             let offset = dst.len();
-            dst.resize(offset + item.data.len(), 0);
+            dst.reserve(item.data.len());
+
+            unsafe {
+                dst.set_len(offset + item.data.len());
+            }
+
             mask::mask_slice_copy(&mut dst[offset..], &item.data, mask);
         } else {
             dst.put_slice(&item.data);
