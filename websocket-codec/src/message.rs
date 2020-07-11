@@ -1,4 +1,4 @@
-use std::mem;
+use std::convert::TryFrom;
 use std::result;
 use std::str::{self, Utf8Error};
 use std::usize;
@@ -6,11 +6,10 @@ use std::usize;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::frame::{FrameHeader, FrameHeaderCodec};
+use crate::frame::FrameHeader;
 use crate::mask::{self, Mask};
 use crate::opcode::Opcode;
 use crate::{Error, Result};
-use std::convert::TryFrom;
 
 /// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -131,7 +130,6 @@ impl Message {
 /// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
 #[derive(Clone)]
 pub struct MessageCodec {
-    interrupted_header: Option<FrameHeader>,
     interrupted_message: Option<(Opcode, BytesMut)>,
     use_mask: bool,
 }
@@ -155,7 +153,6 @@ impl MessageCodec {
     pub fn with_masked_encode(use_mask: bool) -> Self {
         Self {
             use_mask,
-            interrupted_header: None,
             interrupted_message: None,
         }
     }
@@ -166,12 +163,10 @@ impl Decoder for MessageCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>> {
-        let mut state = mem::replace(&mut self.interrupted_message, None);
+        let mut state = self.interrupted_message.take();
         let (opcode, data) = loop {
-            let header = if let Some(header) = self.interrupted_header.take() {
-                header
-            } else if let Some(header) = FrameHeaderCodec.decode(src)? {
-                header
+            let (header, header_len) = if let Some(tuple) = FrameHeader::parse_slice(&src) {
+                tuple
             } else {
                 // The buffer isn't big enough for the frame header. Reserve additional space for a frame header,
                 // plus reasonable extensions.
@@ -181,7 +176,8 @@ impl Decoder for MessageCodec {
             };
 
             let data_len = usize::try_from(header.data_len)?;
-            if data_len > src.remaining() {
+            let frame_len = header_len + data_len;
+            if frame_len > src.remaining() {
                 // The buffer contains the frame header but it's not big enough for the data. Reserve additional
                 // space for the frame data, plus the next frame header.
                 // Note that we guard against bad data that indicates an unreasonable frame length.
@@ -190,22 +186,22 @@ impl Decoder for MessageCodec {
                 // usize::MAX bytes in size?
                 // On a 64-bit platform we should not reach here as the usize::try_from line above enforces the
                 // max payload length detailed in the RFC of 2^63 bytes.
-                if data_len > usize::MAX - src.remaining() {
-                    return Err(format!("frame is too long: {} bytes ({:x})", data_len, data_len).into());
+                if frame_len > usize::MAX - src.remaining() {
+                    return Err(format!("frame is too long: {0} bytes ({0:x})", frame_len).into());
                 }
 
                 // We don't really reserve space for the entire frame data in a single call. If somebody is sending
                 // more than a gigabyte of data in a single frame then we'll still try to receive it, we'll just
                 // reserve in 1GB chunks.
-                src.reserve(data_len.min(0x4000_0000) + 512);
+                src.reserve(frame_len.min(0x4000_0000) + 512);
 
-                self.interrupted_header = Some(header);
                 self.interrupted_message = state;
                 return Ok(None);
             }
 
             // The buffer contains the frame header and all of the data. We can parse it and return Ok(Some(...)).
-            let mut data = src.split_to(data_len);
+            let mut data = src.split_to(frame_len);
+            data.advance(header_len);
 
             let FrameHeader {
                 fin,
@@ -288,7 +284,7 @@ impl<'a> Encoder<&'a Message> for MessageCodec {
     fn encode(&mut self, item: &Message, dst: &mut BytesMut) -> Result<()> {
         let mask = if self.use_mask { Some(Mask::new()) } else { None };
         let header = item.header(mask);
-        FrameHeaderCodec.encode(&header, dst)?;
+        header.write_to_bytes(dst);
 
         if let Some(mask) = mask {
             let offset = dst.len();

@@ -1,49 +1,13 @@
 use std::convert::TryFrom;
-use std::io;
 use std::mem;
-use std::result;
 use std::usize;
 
-use byteorder::{ByteOrder, NativeEndian};
-use bytes::{Buf, BufMut, BytesMut};
+use byteorder::{BigEndian, ByteOrder, NativeEndian};
+use bytes::BytesMut;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::mask::Mask;
 use crate::{Error, Result};
-
-/// A placeholder error type for the `FrameHeaderCodec`.
-///
-/// Encoding and decoding of frame headers cannot return an error. This uninhabited type is assigned
-/// to the `Error` associated type on `FrameHeaderCodec`.
-#[derive(Copy, Clone, Debug)]
-pub enum Infallible {}
-
-impl From<io::Error> for Infallible {
-    fn from(e: io::Error) -> Self {
-        panic!("unexpected error: {}", e)
-    }
-}
-
-impl From<Infallible> for Error {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
-}
-
-#[cfg(target_endian = "little")]
-fn put_u32_native(dst: &mut BytesMut, mask: u32) {
-    dst.put_u32_le(mask);
-}
-#[cfg(target_endian = "big")]
-fn put_u32_native(dst: &mut BytesMut, mask: u32) {
-    dst.put_u32(mask);
-}
-
-fn get_u32_native(src: &mut &[u8]) -> u32 {
-    let mask = NativeEndian::read_u32(src);
-    src.advance(4);
-    mask
-}
 
 /// Describes the length of the payload data within an individual WebSocket frame.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -190,6 +154,128 @@ impl FrameHeader {
 
         len
     }
+
+    pub(crate) fn parse_slice(buf: &[u8]) -> Option<(Self, usize)> {
+        if buf.len() < 2 {
+            return None;
+        }
+
+        let fin_opcode = buf[0];
+        let mask_data_len = buf[1];
+        let mut header_len = 2;
+        let fin = (fin_opcode & 0x80) != 0;
+        let rsv = (fin_opcode & 0xf0) & !0x80;
+        let opcode = fin_opcode & 0x0f;
+
+        let (buf, data_len) = match mask_data_len & 0x7f {
+            127 => {
+                if buf.len() < 10 {
+                    return None;
+                }
+
+                header_len += 8;
+
+                (&buf[10..], DataLength::Large(BigEndian::read_u64(&buf[2..10])))
+            }
+            126 => {
+                if buf.len() < 4 {
+                    return None;
+                }
+
+                header_len += 2;
+
+                (&buf[4..], DataLength::Medium(BigEndian::read_u16(&buf[2..4])))
+            }
+            n => {
+                assert!(n < 126);
+                (&buf[2..], DataLength::Small(n))
+            }
+        };
+
+        let mask = if mask_data_len & 0x80 == 0 {
+            None
+        } else {
+            if buf.len() < 4 {
+                return None;
+            }
+
+            header_len += 4;
+            Some(NativeEndian::read_u32(buf).into())
+        };
+
+        let header = Self {
+            fin,
+            rsv,
+            opcode,
+            mask,
+            data_len,
+        };
+
+        debug_assert_eq!(header.header_len(), header_len);
+        Some((header, header_len))
+    }
+
+    pub(crate) fn write_to_slice(&self, dst: &mut [u8]) {
+        let FrameHeader {
+            fin,
+            rsv,
+            opcode,
+            mask,
+            data_len,
+        } = *self;
+
+        let mut fin_opcode = rsv | opcode;
+        if fin {
+            fin_opcode |= 0x80
+        };
+
+        dst[0] = fin_opcode;
+
+        let mask_bit = if mask.is_some() { 0x80 } else { 0 };
+
+        let dst = match data_len {
+            DataLength::Small(n) => {
+                dst[1] = mask_bit | n;
+                &mut dst[2..]
+            }
+            DataLength::Medium(n) => {
+                let (dst, rest) = dst.split_at_mut(4);
+                dst[1] = mask_bit | 126;
+                BigEndian::write_u16(&mut dst[2..4], n);
+                rest
+            }
+            DataLength::Large(n) => {
+                let (dst, rest) = dst.split_at_mut(10);
+                dst[1] = mask_bit | 127;
+                BigEndian::write_u64(&mut dst[2..10], n);
+                rest
+            }
+        };
+
+        if let Some(mask) = mask {
+            NativeEndian::write_u32(dst, mask.into());
+        }
+    }
+
+    pub(crate) fn write_to_bytes(&self, dst: &mut BytesMut) {
+        let data_len = match self.data_len {
+            DataLength::Small(n) => n as usize,
+            DataLength::Medium(n) => n as usize,
+            DataLength::Large(n) => n as usize,
+        };
+
+        let header_len = self.header_len();
+        dst.reserve(header_len + data_len);
+
+        if header_len > dst.len() {
+            unsafe {
+                dst.set_len(header_len);
+            }
+        }
+
+        let dst_slice = &mut dst[0..header_len];
+        self.write_to_slice(dst_slice);
+    }
 }
 
 /// Tokio codec for the low-level header portion of WebSocket frames.
@@ -201,120 +287,31 @@ pub struct FrameHeaderCodec;
 
 impl Decoder for FrameHeaderCodec {
     type Item = FrameHeader;
-    type Error = Infallible;
+    type Error = Error;
 
-    fn decode(&mut self, src: &mut BytesMut) -> result::Result<Option<FrameHeader>, Infallible> {
-        let buf = src.bytes();
-        if buf.len() < 2 {
-            return Ok(None);
-        }
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<FrameHeader>> {
+        use bytes::Buf;
 
-        let fin_opcode = buf[0];
-        let mask_data_len = buf[1];
-        let mut buf = &buf[2..];
-        let mut header_len = 2;
-        let fin = (fin_opcode & 0x80) != 0;
-        let rsv = (fin_opcode & 0xf0) & !0x80;
-        let opcode = fin_opcode & 0x0f;
-
-        let data_len = match mask_data_len & 0x7f {
-            127 => {
-                if buf.len() < 8 {
-                    return Ok(None);
-                }
-
-                header_len += 8;
-                DataLength::Large(buf.get_u64())
-            }
-            126 => {
-                if buf.len() < 2 {
-                    return Ok(None);
-                }
-
-                header_len += 2;
-                DataLength::Medium(buf.get_u16())
-            }
-            n => {
-                assert!(n < 126);
-                DataLength::Small(n)
-            }
-        };
-
-        let mask = if mask_data_len & 0x80 == 0 {
-            None
-        } else {
-            if buf.len() < 4 {
-                return Ok(None);
-            }
-
-            header_len += 4;
-            Some(get_u32_native(&mut buf).into())
-        };
-
-        let header = FrameHeader {
-            fin,
-            rsv,
-            opcode,
-            mask,
-            data_len,
-        };
-
-        debug_assert_eq!(header.header_len(), header_len);
-        src.advance(header_len);
-        Ok(Some(header))
+        Ok(FrameHeader::parse_slice(src.bytes()).map(|(header, header_len)| {
+            src.advance(header_len);
+            header
+        }))
     }
 }
 
 impl Encoder<FrameHeader> for FrameHeaderCodec {
-    type Error = Infallible;
+    type Error = Error;
 
-    fn encode(&mut self, item: FrameHeader, dst: &mut BytesMut) -> result::Result<(), Infallible> {
+    fn encode(&mut self, item: FrameHeader, dst: &mut BytesMut) -> Result<()> {
         self.encode(&item, dst)
     }
 }
 
 impl<'a> Encoder<&'a FrameHeader> for FrameHeaderCodec {
-    type Error = Infallible;
+    type Error = Error;
 
-    fn encode(&mut self, item: &'a FrameHeader, dst: &mut BytesMut) -> result::Result<(), Infallible> {
-        let FrameHeader {
-            fin,
-            rsv,
-            opcode,
-            mask,
-            data_len,
-        } = *item;
-
-        let data_len = match data_len {
-            DataLength::Small(n) => n as usize,
-            DataLength::Medium(n) => n as usize,
-            DataLength::Large(n) => n as usize,
-        };
-
-        dst.reserve(item.header_len() + data_len);
-
-        let fin_bit = if fin { 0x80 } else { 0x00 };
-        let mask_bit = if mask.is_some() { 0x80 } else { 0x00 };
-        dst.put_u8(fin_bit | rsv | opcode);
-
-        match DataLength::from(data_len) {
-            DataLength::Small(n) => {
-                dst.put_u8(mask_bit | n);
-            }
-            DataLength::Medium(n) => {
-                dst.put_u8(mask_bit | 126);
-                dst.put_u16(n);
-            }
-            DataLength::Large(n) => {
-                dst.put_u8(mask_bit | 127);
-                dst.put_u64(n);
-            }
-        };
-
-        if let Some(mask) = mask {
-            put_u32_native(dst, mask.into());
-        }
-
+    fn encode(&mut self, item: &'a FrameHeader, dst: &mut BytesMut) -> Result<()> {
+        item.write_to_bytes(dst);
         Ok(())
     }
 }
