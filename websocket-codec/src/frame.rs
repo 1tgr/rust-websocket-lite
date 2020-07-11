@@ -265,6 +265,14 @@ impl Decoder for FrameHeaderCodec {
     }
 }
 
+impl Encoder<FrameHeader> for FrameHeaderCodec {
+    type Error = Infallible;
+
+    fn encode(&mut self, item: FrameHeader, dst: &mut BytesMut) -> result::Result<(), Infallible> {
+        self.encode(&item, dst)
+    }
+}
+
 impl<'a> Encoder<&'a FrameHeader> for FrameHeaderCodec {
     type Error = Infallible;
 
