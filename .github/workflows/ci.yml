@@ -14,12 +14,29 @@ jobs:
         DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
     - name: Pull previous deps
       run: docker pull 1tgr/websocket-lite-deps
-    - name: Build deps
-      run: docker build --cache-from 1tgr/websocket-lite-deps --target deps -t 1tgr/websocket-lite-deps:latest .
+    - name: Pull master build
+      run: docker pull 1tgr/websocket-lite-build:master
     - name: Pull previous build
-      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest || true
+      continue-on-error: true
+      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+    - name: Build deps
+      run: >-
+        docker build
+        --cache-from 1tgr/websocket-lite-deps
+        --target deps -t 1tgr/websocket-lite-deps:latest
+        .
     - name: cargo build
-      run: docker build --cache-from 1tgr/websocket-lite-deps --cache-from 1tgr/websocket-lite-build --build-arg BUILDKIT_INLINE_CACHE=1 --target build -t 1tgr/websocket-lite-build:${GITHUB_REF##*/} .
+      run: >-
+        docker build
+        --cache-from 1tgr/websocket-lite-deps
+        --cache-from 1tgr/websocket-lite-build:master
+        --cache-from 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        --target build
+        -t 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        .
+    - name: Push current deps
+      if: github.ref == 'refs/heads/master'
+      run: docker push 1tgr/websocket-lite-deps:latest
     - name: Push current build
       run: docker push 1tgr/websocket-lite-build:${GITHUB_REF##*/}
 
@@ -30,9 +47,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Pull current build
-      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
     - name: cargo test
-      run: docker run 1tgr/websocket-lite-build cargo test --release
+      run: >-
+        docker run
+        1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        cargo test --release
 
   cargo-clippy:
     name: cargo clippy
@@ -41,9 +61,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Pull current build
-      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
     - name: cargo clippy
-      run: docker run 1tgr/websocket-lite-build cargo clippy --release
+      run: >-
+        docker run
+        1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        cargo clippy --release
 
   integration-test:
     name: Integration test
@@ -52,9 +75,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Pull current build
-      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
     - name: Build integration test
-      run: docker build --cache-from 1tgr/websocket-lite-build --target app -t 1tgr/websocket-lite:latest .
+      run: >-
+        docker build
+        --cache-from 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        --target app
+        -t 1tgr/websocket-lite:latest
+        .
     - name: Integration test
       run: docker-compose up --exit-code-from test
 
@@ -65,8 +93,17 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Pull current build
-      run: (docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/} && docker tag 1tgr/websocket-lite-build:${GITHUB_REF##*/} 1tgr/websocket-lite-build:latest) || docker pull 1tgr/websocket-lite-build:latest
+      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
     - name: Build fuzz test
-      run: docker build --cache-from 1tgr/websocket-lite-build --target fuzz -t 1tgr/websocket-lite-fuzz:latest .
+      run: >-
+        docker build
+        --cache-from 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        --target fuzz
+        -t 1tgr/websocket-lite-fuzz:latest
+        .
     - name: Fuzz test
-      run: docker run --cap-add SYS_PTRACE 1tgr/websocket-lite-fuzz:latest cargo fuzz run fuzz_codec fuzz/corpus/custom -- -dict=fuzz/dict.txt -max_total_time=60
+      run: >-
+        docker run
+        --cap-add SYS_PTRACE
+        1tgr/websocket-lite-fuzz:latest
+        cargo fuzz run fuzz_codec fuzz/corpus/custom -- -dict=fuzz/dict.txt -max_total_time=60
