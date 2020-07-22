@@ -1,8 +1,6 @@
 FROM ubuntu:bionic-20200630 as deps
 
-RUN apt-get -y update
-
-RUN apt-get -y install \
+RUN apt-get -y update && apt-get -y install \
     clang \
     curl \
     libssl-dev \
@@ -67,9 +65,7 @@ RUN cargo fuzz build
 
 FROM ubuntu:bionic-20200630 as app
 
-RUN apt-get -y update
-
-RUN apt-get -y install \
+RUN apt-get -y update && apt-get -y install \
     ca-certificates \
     netcat \
     openssl \
