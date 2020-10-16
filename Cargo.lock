@@ -408,7 +408,7 @@ version = "0.0.0"
 dependencies = [
  "bytes",
  "libfuzzer-sys",
- "tokio-util",
+ "tokio-util 0.4.0",
  "websocket-codec",
 ]
 
@@ -438,8 +438,8 @@ dependencies = [
  "indexmap",
  "log",
  "slab",
- "tokio",
- "tokio-util",
+ "tokio 0.2.22",
+ "tokio-util 0.3.1",
 ]
 
 [[package]]
@@ -511,7 +511,7 @@ dependencies = [
  "pin-project",
  "socket2",
  "time",
- "tokio",
+ "tokio 0.2.22",
  "tower-service",
  "tracing",
  "want",
@@ -523,8 +523,8 @@ version = "0.3.5"
 dependencies = [
  "futures",
  "hyper",
- "tokio",
- "tokio-util",
+ "tokio 0.2.22",
+ "tokio-util 0.4.0",
  "websocket-codec",
 ]
 
@@ -1302,6 +1302,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7137dbb0abee577362ccdc7df21605cfcbb949243aeab47dac9ea6ef7d830e21"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "tokio-macros"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1319,7 +1330,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c4b08c5f4208e699ede3df2520aca2e82401b2de33f45e96696a074480be594"
 dependencies = [
  "openssl",
- "tokio",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -1329,7 +1340,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a70f4fcd7b3b24fb194f837560168208f669ca8cb70d0c4b862944452396343"
 dependencies = [
  "native-tls",
- "tokio",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -1343,7 +1354,21 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
- "tokio",
+ "tokio 0.2.22",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24793699f4665ba0416ed287dc794fe6b11a4aa5e4e95b58624f45f6c46b97d4"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "log",
+ "pin-project-lite",
+ "tokio 0.3.0",
 ]
 
 [[package]]
@@ -1550,7 +1575,7 @@ dependencies = [
  "sha1",
  "static_assertions",
  "structopt",
- "tokio-util",
+ "tokio-util 0.4.0",
 ]
 
 [[package]]
@@ -1564,10 +1589,10 @@ dependencies = [
  "openssl",
  "rand",
  "structopt",
- "tokio",
+ "tokio 0.2.22",
  "tokio-openssl",
  "tokio-tls",
- "tokio-util",
+ "tokio-util 0.4.0",
  "url",
  "websocket-codec",
 ]
