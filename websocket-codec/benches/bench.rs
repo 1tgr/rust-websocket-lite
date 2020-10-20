@@ -82,11 +82,11 @@ fn encode_benchmark(c: &mut Criterion) {
 
     bench_encode(&mut c, "masked message tiny", TINY_BYTES, masked_codec.clone());
     bench_encode(&mut c, "masked message small", SMALL_BYTES, masked_codec.clone());
-    bench_encode(&mut c, "masked message medium", MEDIUM_BYTES, masked_codec.clone());
+    bench_encode(&mut c, "masked message medium", MEDIUM_BYTES, masked_codec);
 
     bench_encode(&mut c, "nomask message tiny", TINY_BYTES, nomask_codec.clone());
     bench_encode(&mut c, "nomask message small", SMALL_BYTES, nomask_codec.clone());
-    bench_encode(&mut c, "nomask message medium", MEDIUM_BYTES, nomask_codec.clone());
+    bench_encode(&mut c, "nomask message medium", MEDIUM_BYTES, nomask_codec);
 
     bench_encode(&mut c, "header tiny", TINY_BYTES, FrameHeaderCodec);
     bench_encode(&mut c, "header small", SMALL_BYTES, FrameHeaderCodec);
@@ -102,11 +102,11 @@ fn decode_benchmark(c: &mut Criterion) {
 
     bench_decode(&mut c, "masked message tiny", TINY_BYTES, masked_codec.clone());
     bench_decode(&mut c, "masked message small", SMALL_BYTES, masked_codec.clone());
-    bench_decode(&mut c, "masked message medium", MEDIUM_BYTES, masked_codec.clone());
+    bench_decode(&mut c, "masked message medium", MEDIUM_BYTES, masked_codec);
 
     bench_decode(&mut c, "nomask message tiny", TINY_BYTES, nomask_codec.clone());
     bench_decode(&mut c, "nomask message small", SMALL_BYTES, nomask_codec.clone());
-    bench_decode(&mut c, "nomask message medium", MEDIUM_BYTES, nomask_codec.clone());
+    bench_decode(&mut c, "nomask message medium", MEDIUM_BYTES, nomask_codec);
 
     bench_decode(&mut c, "header tiny", TINY_BYTES, FrameHeaderCodec);
     bench_decode(&mut c, "header small", SMALL_BYTES, FrameHeaderCodec);

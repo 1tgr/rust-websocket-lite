@@ -334,7 +334,7 @@ mod tests {
             data_len: data_len.into(),
         });
 
-        assert_allocated_bytes(header.header_len() + data_len as usize, || {
+        assert_allocated_bytes((header.header_len() + data_len as usize).max(8), || {
             let mut codec = FrameHeaderCodec;
             let mut bytes = BytesMut::new();
             codec.encode(&header, &mut bytes).unwrap();

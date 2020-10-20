@@ -1,7 +1,5 @@
 #![allow(clippy::new_without_default)]
 
-use rand;
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Mask(u32);
 
@@ -115,9 +113,9 @@ mod tests {
     //  - Second and third bytes are unchanged
     //  - Fourth byte has its bottom bit flipped, so in text it's still a recognisable letter
 
-    pub static DATA: &'static [u8] = b"abcdefghijklmnopqrstuvwxyz123456789";
+    pub static DATA: &[u8] = b"abcdefghijklmnopqrstuvwxyz123456789";
 
-    static MASKED_DATA: &'static [u8] = b"\
+    static MASKED_DATA: &[u8] = b"\
         \x9ebce\
         \x9afgi\
         \x96jkm\

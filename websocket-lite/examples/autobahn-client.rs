@@ -42,14 +42,7 @@ fn main() -> Result<()> {
             stdout.flush()?;
         }
 
-        loop {
-            let message = match client.receive() {
-                Ok(Some(message)) => message,
-                Ok(None) | Err(_) => {
-                    break;
-                }
-            };
-
+        while let Ok(Some(message)) = client.receive() {
             match message.opcode() {
                 Opcode::Text | Opcode::Binary => client.send(message)?,
 
@@ -73,13 +66,7 @@ fn get_case_count(ws_url: &Url) -> Result<usize> {
     let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
     let mut count = 0;
 
-    loop {
-        let message = if let Some(message) = client.receive()? {
-            message
-        } else {
-            break;
-        };
-
+    while let Some(message) = client.receive()? {
         match message.opcode() {
             Opcode::Text => {
                 count = message.as_text().unwrap().parse()?;
@@ -105,13 +92,7 @@ fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
     let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
     println!("Updating reports...");
 
-    loop {
-        let message = if let Some(message) = client.receive()? {
-            message
-        } else {
-            break;
-        };
-
+    while let Some(message) = client.receive()? {
         match message.opcode() {
             Opcode::Close => {
                 let _ = client.send(Message::close(None));

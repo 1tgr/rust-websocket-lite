@@ -328,7 +328,7 @@ mod tests {
         let header = message.header(Some(Mask::from(0)));
         let frame_len = header.header_len() + data_len;
         let mut bytes = BytesMut::new();
-        assert_allocated_bytes(frame_len, {
+        assert_allocated_bytes(frame_len.max(8), {
             || {
                 MessageCodec::client()
                     .encode(&message, &mut bytes)

@@ -5,7 +5,7 @@ use futures::stream::StreamExt;
 use websocket_lite::{Message, Opcode, Result};
 
 async fn run() -> Result<()> {
-    let url = env::args().nth(1).unwrap_or("ws://localhost:9001".to_owned());
+    let url = env::args().nth(1).unwrap_or_else(|| "ws://localhost:9001".to_owned());
     let builder = websocket_lite::ClientBuilder::new(&url)?;
     let mut ws_stream = builder.async_connect().await?;
 

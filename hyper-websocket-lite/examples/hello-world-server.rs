@@ -15,7 +15,7 @@ async fn on_client(mut client: AsyncClient) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let port = env::args().nth(1).unwrap_or("9001".to_owned()).parse()?;
+    let port = env::args().nth(1).unwrap_or_else(|| "9001".to_owned()).parse()?;
     let addr = ([0, 0, 0, 0], port).into();
 
     let make_service =

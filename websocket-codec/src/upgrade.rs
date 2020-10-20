@@ -1,7 +1,6 @@
 use std::result;
 use std::str;
 
-use base64;
 use base64::display::Base64Display;
 use bytes::{Buf, BytesMut};
 use httparse::{self, Header, Response};

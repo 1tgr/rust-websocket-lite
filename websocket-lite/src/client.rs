@@ -4,9 +4,7 @@ use std::net::{SocketAddr, TcpStream as StdTcpStream};
 use std::result;
 use std::str;
 
-use base64;
 use futures::StreamExt;
-use rand;
 use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt},
     net::TcpStream as TokioTcpStream,
@@ -228,7 +226,6 @@ mod tests {
     use std::str;
     use std::task::{Context, Poll};
 
-    use base64;
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio::runtime::Runtime;
 
@@ -294,19 +291,19 @@ mod tests {
         }
     }
 
-    static REQUEST: &'static str = "GET /stream?query HTTP/1.1\r\n\
-                                    Host: localhost:8000\r\n\
-                                    Upgrade: websocket\r\n\
-                                    Connection: Upgrade\r\n\
-                                    Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
-                                    Sec-WebSocket-Version: 13\r\n\
-                                    \r\n";
+    static REQUEST: &str = "GET /stream?query HTTP/1.1\r\n\
+                            Host: localhost:8000\r\n\
+                            Upgrade: websocket\r\n\
+                            Connection: Upgrade\r\n\
+                            Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+                            Sec-WebSocket-Version: 13\r\n\
+                            \r\n";
 
-    static RESPONSE: &'static str = "HTTP/1.1 101 Switching Protocols\r\n\
-                                     Upgrade: websocket\r\n\
-                                     Connection: Upgrade\r\n\
-                                     sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
-                                     \r\n";
+    static RESPONSE: &str = "HTTP/1.1 101 Switching Protocols\r\n\
+                             Upgrade: websocket\r\n\
+                             Connection: Upgrade\r\n\
+                             sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
+                             \r\n";
 
     #[test]
     fn can_async_connect_on() -> Result<()> {

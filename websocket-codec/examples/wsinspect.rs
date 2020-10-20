@@ -110,7 +110,7 @@ fn inspect(path: &Path, dump_header: bool, dump_data: bool) -> Result<()> {
     }
 
     let buf = stream.fill_buf()?;
-    if buf.len() > 0 {
+    if !buf.is_empty() {
         return Err(format!("additional {} data bytes at end of stream: {:?}", buf.len(), buf).into());
     }
 
