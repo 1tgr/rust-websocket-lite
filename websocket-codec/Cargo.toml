@@ -10,7 +10,7 @@ edition = "2018"
 [dependencies]
 base64 = "0.12"
 byteorder = "1"
-bytes = "0.5"
+bytes = "0.6"
 httparse = "1"
 rand = "0.7"
 sha1 = "0.6"

@@ -9,7 +9,7 @@ edition = "2018"
 
 [dependencies]
 base64 = "0.12"
-bytes = "0.5"
+bytes = "0.6"
 futures = "0.3"
 native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
