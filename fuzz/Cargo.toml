@@ -11,7 +11,7 @@ cargo-fuzz = true
 [dependencies]
 bytes = "0.5"
 libfuzzer-sys = "0.3"
-tokio-util = { version="0.3", features=["codec"] }
+tokio-util = { version="0.5", features=["codec"] }
 websocket-codec = { path = "../websocket-codec" }
 
 [[bin]]
