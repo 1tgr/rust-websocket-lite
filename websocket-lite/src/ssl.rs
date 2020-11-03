@@ -14,10 +14,10 @@ mod inner {
     pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(
         domain: String,
         stream: S,
-    ) -> Result<::tokio_tls::TlsStream<S>> {
+    ) -> Result<tokio_native_tls::TlsStream<S>> {
         let builder = TlsConnector::builder();
         let cx = builder.build()?;
-        Ok(tokio_tls::TlsConnector::from(cx).connect(&domain, stream).await?)
+        Ok(tokio_native_tls::TlsConnector::from(cx).connect(&domain, stream).await?)
     }
 
     pub fn wrap<S: Read + Write + Debug + 'static>(domain: &str, stream: S) -> Result<::native_tls::TlsStream<S>> {
