@@ -9,26 +9,26 @@ edition = "2018"
 
 [dependencies]
 base64 = "0.12"
-bytes = "0.5"
+bytes = "0.6"
 futures = "0.3"
 native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.7"
-tokio-util = {version= "0.3", features=["codec"]}
-tokio-openssl = { version = "0.4.0-alpha.6", optional = true }
-tokio-tls = { version = "0.3", optional = true }
-tokio = {version="0.2", features=["tcp", "io-util"]}
+tokio-util = {version= "0.5", features=["codec"]}
+tokio-openssl = { version = "0.5", optional = true }
+tokio-native-tls = { version = "0.2", optional = true }
+tokio = {version="0.3", features=["net", "io-util"]}
 url = "2"
 websocket-codec = { version = "0.3.5", path = "../websocket-codec" }
 
 [dev-dependencies]
 structopt = "0.3"
-tokio = { version = "0.2", features=["macros", "time", "io-std"] }
+tokio = { version = "0.3", features=["macros", "time", "io-std"] }
 
 [features]
 default = ["ssl-native-tls"]
 nightly = []
-ssl-native-tls = ["native-tls", "tokio-tls"]
+ssl-native-tls = ["native-tls", "tokio-native-tls"]
 ssl-openssl = ["openssl", "tokio-openssl"]
 
 ## Uncomment to enable the SSLKEYLOGFILE environment variable when the ssl-openssl feature is used
