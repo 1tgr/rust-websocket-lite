@@ -301,6 +301,7 @@ impl Decoder for FrameHeaderCodec {
 
 impl Encoder<FrameHeader> for FrameHeaderCodec {
     type Error = Error;
+
     fn encode(&mut self, item: FrameHeader, dst: &mut BytesMut) -> Result<()> {
         self.encode(&item, dst)
     }
