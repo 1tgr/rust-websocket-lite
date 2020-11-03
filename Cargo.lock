@@ -415,7 +415,7 @@ dependencies = [
  "bytes 0.6.0",
  "libfuzzer-sys",
  "tokio-util 0.5.0",
- "websocket-codec",
+ "websocket-codec 0.4.0",
 ]
 
 [[package]]
@@ -529,9 +529,9 @@ version = "0.3.5"
 dependencies = [
  "futures",
  "hyper",
- "tokio 0.3.2",
- "tokio-util 0.5.0",
- "websocket-codec",
+ "tokio 0.2.22",
+ "tokio-util 0.3.1",
+ "websocket-codec 0.3.5",
 ]
 
 [[package]]
@@ -1336,6 +1336,7 @@ dependencies = [
  "mio 0.6.21",
  "pin-project-lite",
  "slab",
+ "tokio-macros 0.2.5",
 ]
 
 [[package]]
@@ -1351,8 +1352,18 @@ dependencies = [
  "memchr",
  "mio 0.7.5",
  "pin-project-lite",
- "slab",
- "tokio-macros",
+ "tokio-macros 0.3.1",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1606,6 +1617,21 @@ dependencies = [
 [[package]]
 name = "websocket-codec"
 version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33eea455ea3a328dea4d3c2a30b3c0e1a6475e8b1bc9a1defe2365a3e7128756"
+dependencies = [
+ "base64",
+ "byteorder",
+ "bytes 0.5.6",
+ "httparse",
+ "rand",
+ "sha1",
+ "tokio-util 0.3.1",
+]
+
+[[package]]
+name = "websocket-codec"
+version = "0.4.0"
 dependencies = [
  "assert-allocations",
  "base64",
@@ -1624,7 +1650,7 @@ dependencies = [
 
 [[package]]
 name = "websocket-lite"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "base64",
  "bytes 0.6.0",
@@ -1638,7 +1664,7 @@ dependencies = [
  "tokio-openssl",
  "tokio-util 0.5.0",
  "url",
- "websocket-codec",
+ "websocket-codec 0.4.0",
 ]
 
 [[package]]

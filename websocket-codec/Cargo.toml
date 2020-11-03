@@ -1,7 +1,7 @@
 [package]
 name = "websocket-codec"
 description = "A Tokio codec for the websocket protocol"
-version = "0.3.5"
+version = "0.4.0"
 authors = ["Tim Robinson <tim.g.robinson@gmail.com>"]
 repository = "https://github.com/1tgr/rust-websocket-lite"
 license = "MIT"
