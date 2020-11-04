@@ -226,8 +226,7 @@ mod tests {
     use std::str;
     use std::task::{Context, Poll};
 
-    use tokio::io::{AsyncRead, AsyncWrite};
-    use tokio::runtime::Runtime;
+    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
     use crate::ClientBuilder;
 
@@ -272,7 +271,7 @@ mod tests {
     }
 
     impl<R: AsyncRead + Unpin, W: Unpin> AsyncRead for ReadWritePair<R, W> {
-        fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
             Pin::new(&mut self.get_mut().0).poll_read(cx, buf)
         }
     }
@@ -305,17 +304,15 @@ mod tests {
                              sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
                              \r\n";
 
-    #[test]
-    fn can_async_connect_on() -> Result<()> {
+    #[tokio::test]
+    async fn can_async_connect_on() -> Result<()> {
         let mut input = Cursor::new(&RESPONSE[..]);
         let mut output = Vec::new();
 
-        Runtime::new()?.block_on(async {
-            ClientBuilder::new("ws://localhost:8000/stream?query")?
-                .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
-                .async_connect_on(ReadWritePair(&mut input, &mut output))
-                .await
-        })?;
+        ClientBuilder::new("ws://localhost:8000/stream?query")?
+            .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
+            .async_connect_on(ReadWritePair(&mut input, &mut output))
+            .await.unwrap();
 
         assert_eq!(REQUEST, str::from_utf8(&output)?);
         Ok(())
