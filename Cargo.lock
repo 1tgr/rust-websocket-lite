@@ -1351,7 +1351,9 @@ dependencies = [
  "libc",
  "memchr",
  "mio 0.7.5",
+ "num_cpus",
  "pin-project-lite",
+ "slab",
  "tokio-macros 0.3.1",
 ]
 

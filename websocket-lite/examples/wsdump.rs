@@ -43,8 +43,8 @@ async fn main() -> Result<()> {
             sink.send(message).await?;
         }
 
-        time::delay_for(eof_wait).await;
-        Ok(()) as Result<()>
+        time::sleep(eof_wait).await;
+        Ok(()) 
     };
 
     let recv_loop = async {
