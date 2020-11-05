@@ -541,7 +541,7 @@ version = "0.3.5"
 dependencies = [
  "futures",
  "hyper",
- "tokio 0.2.22",
+ "tokio 0.3.2",
  "tokio-util 0.3.1",
  "websocket-codec 0.3.5",
 ]
@@ -1337,7 +1337,6 @@ dependencies = [
  "mio 0.6.21",
  "pin-project-lite",
  "slab",
- "tokio-macros 0.2.5",
 ]
 
 [[package]]
@@ -1355,18 +1354,7 @@ dependencies = [
  "num_cpus",
  "pin-project-lite",
  "slab",
- "tokio-macros 0.3.1",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "tokio-macros",
 ]
 
 [[package]]
