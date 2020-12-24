@@ -12,4 +12,4 @@ futures = "0.3"
 hyper = "0.13"
 websocket-codec = { version = "0.3.5" }
 tokio = { version = "0.2", features=["macros"] }
-tokio-util = { version = "0.3", features=["codec"] }
+tokio-util = { version = "0.6", features=["codec"] }
