@@ -292,7 +292,7 @@ impl Decoder for FrameHeaderCodec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<FrameHeader>> {
         use bytes::Buf;
 
-        Ok(FrameHeader::parse_slice(src.bytes()).map(|(header, header_len)| {
+        Ok(FrameHeader::parse_slice(src.chunk()).map(|(header, header_len)| {
             src.advance(header_len);
             header
         }))

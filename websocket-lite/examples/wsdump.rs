@@ -5,8 +5,7 @@ use futures::future::{self, FutureExt};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use structopt::StructOpt;
-use tokio::io::BufReader;
-use tokio::prelude::*;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::time;
 use url::Url;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
@@ -44,7 +43,7 @@ async fn main() -> Result<()> {
         }
 
         time::sleep(eof_wait).await;
-        Ok(()) 
+        Ok(())
     };
 
     let recv_loop = async {

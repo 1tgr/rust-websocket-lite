@@ -36,7 +36,7 @@ where
     };
 
     task::spawn(async move {
-        match req.into_body().on_upgrade().await {
+        match hyper::upgrade::on(req).await {
             Ok(upgraded) => {
                 let client = MessageCodec::server().framed(upgraded);
                 on_client(client).await;
