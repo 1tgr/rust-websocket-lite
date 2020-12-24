@@ -55,7 +55,7 @@ impl<S: Read, C: Decoder> Framed<S, C> {
                 self.read_buf.reserve(1);
             }
 
-            let buf = self.read_buf.bytes_mut();
+            let buf = self.read_buf.chunk_mut();
 
             let buf = unsafe {
                 for i in 0..buf.len() {
