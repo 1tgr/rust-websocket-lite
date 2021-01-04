@@ -325,6 +325,10 @@ mod tests {
             }
         });
 
+        // thread_rng performs a one-off memory allocation the first time it is used on a given thread.
+        // We make that allocation here, instead of inside the assert_allocated_bytes block below.
+        rand::thread_rng();
+
         let header = message.header(Some(Mask::from(0)));
         let frame_len = header.header_len() + data_len;
         let mut bytes = BytesMut::new();

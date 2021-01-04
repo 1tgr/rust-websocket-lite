@@ -12,7 +12,7 @@ base64 = "0.13"
 byteorder = "1"
 bytes = "1"
 httparse = "1"
-rand = "0.7"
+rand = "0.8"
 sha1 = "0.6"
 tokio-util = { version="0.6", features=["codec"] }
 
