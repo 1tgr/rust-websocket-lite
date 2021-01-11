@@ -325,13 +325,13 @@ mod tests {
     use crate::frame::{FrameHeader, FrameHeaderCodec};
 
     #[quickcheck]
-    fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, data_len: u64) {
+    fn round_trips(fin: bool, is_text: bool, mask: Option<u32>, data_len: u16) {
         let header = assert_allocated_bytes(0, || FrameHeader {
             fin,
             rsv: 0,
             opcode: if is_text { 1 } else { 2 },
             mask: mask.map(|n| n.into()),
-            data_len: data_len.into(),
+            data_len: (data_len as u64).into(),
         });
 
         assert_allocated_bytes((header.header_len() + data_len as usize).max(8), || {
