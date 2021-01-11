@@ -20,7 +20,7 @@ tokio-util = { version="0.6", features=["codec"] }
 assert-allocations = { path="../assert-allocations" }
 criterion = "0.3"
 quickcheck = "0.9"
-quickcheck_macros = "0.9"
+quickcheck_macros = "1.0"
 static_assertions = "1"
 structopt = "0.3"
 
