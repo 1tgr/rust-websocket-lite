@@ -863,7 +863,7 @@ checksum = "efc008b226fa5bdeabfc788d6679692223e940da371a95e26d87678333dac7c8"
 dependencies = [
  "env_logger",
  "log",
- "rand 0.8.1",
+ "rand 0.8.2",
 ]
 
 [[package]]
@@ -901,9 +901,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c24fcd450d3fa2b592732565aa4f17a27a61c65ece4726353e000939b0edee34"
+checksum = "18519b42a40024d661e1714153e9ad0c3de27cd495760ceb09710920f1098b1e"
 dependencies = [
  "libc",
  "rand_chacha 0.3.0",
@@ -1554,7 +1554,7 @@ dependencies = [
  "httparse",
  "quickcheck",
  "quickcheck_macros",
- "rand 0.8.1",
+ "rand 0.8.2",
  "sha1",
  "static_assertions",
  "structopt",
@@ -1570,7 +1570,7 @@ dependencies = [
  "futures",
  "native-tls",
  "openssl",
- "rand 0.8.1",
+ "rand 0.8.2",
  "structopt",
  "tokio",
  "tokio-native-tls",
