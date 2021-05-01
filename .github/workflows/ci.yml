@@ -30,6 +30,8 @@ jobs:
     - uses: actions/checkout@v2
     - uses: satackey/action-docker-layer-caching@v0.0.11
       continue-on-error: true
+      with:
+        skip-save: true
     - name: cargo build
       run: >-
         docker build
@@ -50,6 +52,8 @@ jobs:
     - uses: actions/checkout@v2
     - uses: satackey/action-docker-layer-caching@v0.0.11
       continue-on-error: true
+      with:
+        skip-save: true
     - name: cargo build
       run: >-
         docker build
@@ -70,6 +74,8 @@ jobs:
     - uses: actions/checkout@v2
     - uses: satackey/action-docker-layer-caching@v0.0.11
       continue-on-error: true
+      with:
+        skip-save: true
     - name: Build integration test
       run: >-
         docker build
@@ -87,6 +93,8 @@ jobs:
     - uses: actions/checkout@v2
     - uses: satackey/action-docker-layer-caching@v0.0.11
       continue-on-error: true
+      with:
+        skip-save: true
     - name: Build fuzz test
       run: >-
         docker build
