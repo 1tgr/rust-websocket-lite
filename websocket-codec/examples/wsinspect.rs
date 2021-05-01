@@ -132,7 +132,7 @@ struct Opt {
     files: Vec<PathBuf>,
 }
 
-fn main() -> Result<()> {
+fn main() {
     let Opt {
         files,
         no_dump_header,
@@ -144,6 +144,4 @@ fn main() -> Result<()> {
             eprintln!("{}: {}", path.to_string_lossy(), e);
         }
     }
-
-    Ok(())
 }
