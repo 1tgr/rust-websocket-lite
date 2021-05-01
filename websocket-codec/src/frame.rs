@@ -50,7 +50,7 @@ impl TryFrom<DataLength> for u64 {
                     return Err(format!("payload length {} should not be represented using 64 bits", n).into());
                 }
 
-                if n >= 0x80000000_00000000 {
+                if n >= 0x8000_0000_0000_0000 {
                     return Err(format!("frame is too long: {} bytes ({:x})", n, n).into());
                 }
 
