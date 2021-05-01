@@ -1,6 +1,6 @@
 name: CI
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   cargo-build:
@@ -8,37 +8,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Docker Hub login
-      run: docker login --username 1tgr --password ${DOCKER_HUB_TOKEN}
-      env:
-        DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
-    - name: Pull previous deps
-      run: docker pull 1tgr/websocket-lite-deps
-    - name: Pull master build
-      run: docker pull 1tgr/websocket-lite-build:master
-    - name: Pull previous build
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       continue-on-error: true
-      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
     - name: Build deps
       run: >-
         docker build
-        --cache-from 1tgr/websocket-lite-deps
-        --target deps -t 1tgr/websocket-lite-deps:latest
+        --target deps
         .
     - name: cargo build
       run: >-
         docker build
-        --cache-from 1tgr/websocket-lite-deps
-        --cache-from 1tgr/websocket-lite-build:master
-        --cache-from 1tgr/websocket-lite-build:${GITHUB_REF##*/}
         --target build
-        -t 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        -t 1tgr/websocket-lite-build:latest
         .
-    - name: Push current deps
-      if: github.ref == 'refs/heads/master'
-      run: docker push 1tgr/websocket-lite-deps:latest
-    - name: Push current build
-      run: docker push 1tgr/websocket-lite-build:${GITHUB_REF##*/}
 
   cargo-test:
     name: cargo test
@@ -46,12 +28,18 @@ jobs:
     needs: cargo-build
     steps:
     - uses: actions/checkout@v2
-    - name: Pull current build
-      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+    - uses: satackey/action-docker-layer-caching@v0.0.11
+      continue-on-error: true
+    - name: cargo build
+      run: >-
+        docker build
+        --target build
+        -t 1tgr/websocket-lite-build:latest
+        .
     - name: cargo test
       run: >-
         docker run
-        1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        1tgr/websocket-lite-build:latest
         cargo test --release
 
   cargo-clippy:
@@ -60,12 +48,18 @@ jobs:
     needs: cargo-build
     steps:
     - uses: actions/checkout@v2
-    - name: Pull current build
-      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+    - uses: satackey/action-docker-layer-caching@v0.0.11
+      continue-on-error: true
+    - name: cargo build
+      run: >-
+        docker build
+        --target build
+        -t 1tgr/websocket-lite-build:latest
+        .
     - name: cargo clippy
       run: >-
         docker run
-        1tgr/websocket-lite-build:${GITHUB_REF##*/}
+        1tgr/websocket-lite-build:latest
         cargo clippy --release --all-targets
 
   integration-test:
@@ -74,12 +68,11 @@ jobs:
     needs: cargo-build
     steps:
     - uses: actions/checkout@v2
-    - name: Pull current build
-      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+    - uses: satackey/action-docker-layer-caching@v0.0.11
+      continue-on-error: true
     - name: Build integration test
       run: >-
         docker build
-        --cache-from 1tgr/websocket-lite-build:${GITHUB_REF##*/}
         --target app
         -t 1tgr/websocket-lite:latest
         .
@@ -92,12 +85,11 @@ jobs:
     needs: cargo-build
     steps:
     - uses: actions/checkout@v2
-    - name: Pull current build
-      run: docker pull 1tgr/websocket-lite-build:${GITHUB_REF##*/}
+    - uses: satackey/action-docker-layer-caching@v0.0.11
+      continue-on-error: true
     - name: Build fuzz test
       run: >-
         docker build
-        --cache-from 1tgr/websocket-lite-build:${GITHUB_REF##*/}
         --target fuzz
         -t 1tgr/websocket-lite-fuzz:latest
         .
