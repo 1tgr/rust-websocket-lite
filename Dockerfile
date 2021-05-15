@@ -8,7 +8,7 @@ RUN apt-get -y update && apt-get -y install \
 
 WORKDIR /build
 COPY rust-toolchain .
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal -c clippy --default-toolchain $(cat rust-toolchain)
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal -c clippy rustfmt --default-toolchain $(cat rust-toolchain)
 ENV PATH=$PATH:/root/.cargo/bin
 RUN cargo install cargo-fuzz
 
