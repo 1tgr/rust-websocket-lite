@@ -23,13 +23,7 @@ pub use crate::client::ClientBuilder;
 
 pub use websocket_codec::{Error, Message, MessageCodec, Opcode, Result};
 
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
-
-/// Used by [`AsyncClient`](type.AsyncClient.html) to represent types that are `AsyncRead` and `AsyncWrite`.
-pub trait AsyncNetworkStream: AsyncRead + AsyncWrite + Unpin {}
-
-impl<S> AsyncNetworkStream for S where S: AsyncRead + AsyncWrite + Unpin {}
 
 /// Exposes a `Sink` and a `Stream` for sending and receiving WebSocket messages asynchronously.
 pub type AsyncClient<S> = Framed<S, MessageCodec>;

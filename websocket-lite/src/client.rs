@@ -285,28 +285,15 @@ mod tests {
                              \r\n";
 
     #[tokio::test]
-    async fn can_async_connect_on() -> Result<()> {
+    async fn can_connect_on() -> Result<()> {
         let mut input = Cursor::new(RESPONSE);
         let mut output = Vec::new();
 
         ClientBuilder::new("ws://localhost:8000/stream?query")?
             .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
-            .async_connect_on(ReadWritePair(&mut input, &mut output))
+            .connect_on(ReadWritePair(&mut input, &mut output))
             .await
             .unwrap();
-
-        assert_eq!(REQUEST, str::from_utf8(&output)?);
-        Ok(())
-    }
-
-    #[test]
-    fn can_connect_on() -> Result<()> {
-        let mut input = Cursor::new(RESPONSE);
-        let mut output = Vec::new();
-
-        ClientBuilder::new("ws://localhost:8000/stream?query")?
-            .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
-            .connect_on(ReadWritePair(&mut input, &mut output))?;
 
         assert_eq!(REQUEST, str::from_utf8(&output)?);
         Ok(())
