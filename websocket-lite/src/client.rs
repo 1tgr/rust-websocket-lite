@@ -14,7 +14,7 @@ use websocket_codec::UpgradeCodec;
 
 use crate::ssl;
 use crate::ssl::MaybeTlsStream;
-use crate::{AsyncClient, MessageCodec, Result};
+use crate::{Client, MessageCodec, Result};
 
 fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
 where
@@ -138,7 +138,7 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if connecting to the server fails.
-    pub async fn connect_insecure(self) -> Result<AsyncClient<TokioTcpStream>> {
+    pub async fn connect_insecure(self) -> Result<Client<TokioTcpStream>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
         Ok(self.connect_on(stream).await?)
@@ -149,7 +149,7 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if connecting to the server fails.
-    pub async fn connect(mut self) -> Result<AsyncClient<MaybeTlsStream<TokioTcpStream>>> {
+    pub async fn connect(mut self) -> Result<Client<MaybeTlsStream<TokioTcpStream>>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
 
@@ -175,7 +175,7 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if writing or reading from the stream fails.
-    pub async fn connect_on<S: AsyncRead + AsyncWrite + Unpin>(self, mut stream: S) -> Result<AsyncClient<S>> {
+    pub async fn connect_on<S: AsyncRead + AsyncWrite + Unpin>(self, mut stream: S) -> Result<Client<S>> {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
