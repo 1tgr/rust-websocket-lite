@@ -130,6 +130,20 @@ impl Message {
             None
         }
     }
+
+    /// For messages with opcode [`Opcode::Close`](enum.Opcode.html), returns the close code and reason.
+    /// Returns `None` otherwise.
+    pub fn as_close(&self) -> Option<(u16, &str)> {
+        if let Opcode::Close = self.opcode {
+            let mut code_arr = [0; 2];
+            code_arr.copy_from_slice(&self.data[..2]);
+            Some((u16::from_be_bytes(code_arr), unsafe {
+                str::from_utf8_unchecked(&self.data[2..])
+            }))
+        } else {
+            None
+        }
+    }
 }
 
 /// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
