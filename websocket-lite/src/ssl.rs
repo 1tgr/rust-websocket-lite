@@ -110,7 +110,7 @@ impl Connector {
             let mut config = ClientConfig::new();
             config.root_store = match rustls_native_certs::load_native_certs() {
                 Ok(store) | Err((Some(store), _)) => store,
-                Err((None, err)) => Err(err)?,
+                Err((None, err)) => return Err(err.into()),
             };
             if config.root_store.is_empty() {
                 panic!("no CA certificates found");

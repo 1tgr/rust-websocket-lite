@@ -155,16 +155,14 @@ impl ClientBuilder {
 
         let connector = if let Some(connector) = self.connector.take() {
             connector
+        } else if self.url.scheme() == "wss" {
+            ssl::Connector::with_default_tls_config()?
         } else {
-            if self.url.scheme() == "wss" {
-                ssl::Connector::with_default_tls_config()?
-            } else {
-                ssl::Connector::Plain
-            }
+            ssl::Connector::Plain
         };
 
-        let domain = self.url.domain().unwrap_or("").to_owned();
-        let stream = connector.wrap(&domain, stream).await?;
+        let domain = self.url.domain().unwrap_or("");
+        let stream = connector.wrap(domain, stream).await?;
 
         self.connect_on(stream).await
     }
