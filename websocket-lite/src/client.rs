@@ -13,6 +13,7 @@ use tokio_util::codec::{Decoder, Framed};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
+#[cfg(feature = "__ssl")]
 use crate::ssl;
 use crate::sync;
 use crate::{AsyncClient, AsyncNetworkStream, Client, MessageCodec, NetworkStream, Result};
@@ -164,8 +165,11 @@ impl ClientBuilder {
         let stream = TokioTcpStream::connect(&addr).await?;
 
         let stream: Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static> = if self.url.scheme() == "wss" {
-            let domain = self.url.domain().unwrap_or("").to_owned();
-            let stream = ssl::async_wrap(&domain, stream).await?;
+            #[cfg(feature = "__ssl")]
+            let stream = {
+                let domain = self.url.domain().unwrap_or("").to_owned();
+                ssl::async_wrap(&domain, stream).await?
+            };
             Box::new(stream)
         } else {
             Box::new(stream)
@@ -184,8 +188,11 @@ impl ClientBuilder {
         let stream = StdTcpStream::connect(&addr)?;
 
         let stream: Box<dyn NetworkStream + Sync + Send + 'static> = if self.url.scheme() == "wss" {
-            let domain = self.url.domain().unwrap_or("");
-            let stream = ssl::wrap(domain, stream)?;
+            #[cfg(feature = "__ssl")]
+            let stream = {
+                let domain = self.url.domain().unwrap_or("");
+                ssl::wrap(domain, stream)?
+            };
             Box::new(stream)
         } else {
             Box::new(stream)

@@ -89,4 +89,5 @@ mod inner {
     }
 }
 
+#[cfg(feature = "__ssl")]
 pub use self::inner::*;
