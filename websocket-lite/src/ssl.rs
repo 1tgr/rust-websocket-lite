@@ -1,10 +1,8 @@
+use std::fmt::{Debug, Formatter, Result as FmtResult};
+use std::pin::Pin;
 #[cfg(feature = "__ssl-rustls")]
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::{
-    fmt::{Debug, Formatter, Result as FmtResult},
-    pin::Pin,
-};
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 #[cfg(feature = "__ssl-rustls")]

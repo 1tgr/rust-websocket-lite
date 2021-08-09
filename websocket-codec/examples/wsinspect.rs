@@ -1,8 +1,7 @@
 use std::fs::File;
-use std::i64;
 use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::result;
+use std::{i64, result};
 
 use bytes::{Buf, BytesMut};
 use structopt::StructOpt;

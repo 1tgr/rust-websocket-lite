@@ -1,20 +1,15 @@
-use std::fmt;
 use std::net::SocketAddr;
-use std::result;
-use std::str;
+use std::{fmt, result, str};
 
 use futures_util::StreamExt;
-use tokio::{
-    io::{AsyncRead, AsyncWrite, AsyncWriteExt},
-    net::TcpStream as TokioTcpStream,
-};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::net::TcpStream as TokioTcpStream;
 use tokio_util::codec::{Decoder, Framed};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
-use crate::ssl;
 use crate::ssl::MaybeTlsStream;
-use crate::{Client, MessageCodec, Result};
+use crate::{ssl, Client, MessageCodec, Result};
 
 fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
 where
@@ -199,12 +194,10 @@ impl ClientBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt;
     use std::io::{self, Cursor, Read, Write};
     use std::pin::Pin;
-    use std::result;
-    use std::str;
     use std::task::{Context, Poll};
+    use std::{fmt, result, str};
 
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 

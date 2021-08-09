@@ -1,5 +1,4 @@
-use std::result;
-use std::str;
+use std::{result, str};
 
 use base64::display::Base64Display;
 use bytes::{Buf, BytesMut};

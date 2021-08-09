@@ -1,7 +1,6 @@
 use std::convert::TryFrom;
-use std::result;
 use std::str::{self, Utf8Error};
-use std::usize;
+use std::{result, usize};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};

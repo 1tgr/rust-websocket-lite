@@ -29,8 +29,7 @@ pub use crate::message::{Message, MessageCodec};
 pub use crate::opcode::Opcode;
 pub use crate::upgrade::{ClientRequest, UpgradeCodec};
 
-use std::error;
-use std::result;
+use std::{error, result};
 
 /// Represents errors that can be exposed by this crate.
 pub type Error = Box<dyn error::Error + Send + Sync + 'static>;
