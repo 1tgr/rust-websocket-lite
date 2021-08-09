@@ -1,12 +1,10 @@
-#![deny(rust_2018_idioms)]
-
-use futures::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
-use hyper_websocket_lite::{server_upgrade, AsyncClient};
+use hyper_websocket_lite::{server_upgrade, Client};
 use websocket_codec::{Message, Opcode, Result};
 
-async fn on_client(mut stream_mut: AsyncClient) {
+async fn on_client(mut stream_mut: Client) {
     let mut stream = loop {
         let (msg, mut stream) = stream_mut.into_future().await;
 

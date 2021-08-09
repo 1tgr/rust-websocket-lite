@@ -75,6 +75,7 @@ pub enum CloseCode {
 
 impl CloseCode {
     /// Check if this `CloseCode` is allowed.
+    #[must_use]
     pub fn is_allowed(self) -> bool {
         !matches!(
             self,
