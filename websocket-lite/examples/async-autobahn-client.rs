@@ -5,7 +5,8 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::let_underscore_drop)]
 
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 
 use futures_util::sink::SinkExt;
 use futures_util::stream::StreamExt;

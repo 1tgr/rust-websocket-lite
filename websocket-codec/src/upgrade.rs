@@ -1,11 +1,10 @@
 use std::fmt::Write;
-use std::result;
-use std::str;
+use std::{result, str};
 
 use base64::display::Base64Display;
 use bytes::{Buf, BytesMut};
-use httparse::{self, Header, Response};
-use sha1::{self, Sha1};
+use httparse::{Header, Response};
+use sha1::Sha1;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::{Error, Result};

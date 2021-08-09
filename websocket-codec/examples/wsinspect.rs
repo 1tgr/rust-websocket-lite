@@ -1,10 +1,9 @@
 #![warn(clippy::pedantic)]
 
 use std::fs::File;
-use std::i64;
-use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::result;
+use std::{i64, io, result};
 
 use bytes::{Buf, BytesMut};
 use structopt::StructOpt;

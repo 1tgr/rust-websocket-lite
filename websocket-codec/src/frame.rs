@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
-use std::mem;
-use std::usize;
+use std::{mem, usize};
 
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 use bytes::BytesMut;

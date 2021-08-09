@@ -104,7 +104,8 @@ mod tests {
     use assert_allocations::assert_allocated_bytes;
     use bytes::{BufMut, Bytes, BytesMut};
 
-    use crate::mask::{self, Mask};
+    use crate::mask;
+    use crate::mask::Mask;
 
     // Test data chosen so that:
     //  - It's not a multiple of 4, ie masking of the unaligned section works

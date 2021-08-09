@@ -1,15 +1,14 @@
 use std::convert::TryFrom;
-use std::result;
 use std::str::{self, Utf8Error};
-use std::usize;
+use std::{result, usize};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::frame::FrameHeader;
-use crate::mask::{self, Mask};
+use crate::mask::Mask;
 use crate::opcode::Opcode;
-use crate::{Error, Result};
+use crate::{mask, Error, Result};
 
 /// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -318,7 +317,8 @@ mod tests {
     use tokio_util::codec::{Decoder, Encoder};
 
     use crate::frame::{FrameHeader, FrameHeaderCodec};
-    use crate::mask::{self, Mask};
+    use crate::mask;
+    use crate::mask::Mask;
     use crate::message::{Message, MessageCodec};
 
     #[quickcheck]

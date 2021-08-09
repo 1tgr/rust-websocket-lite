@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 use std::time::Duration;
 
 use futures_util::future::{self, FutureExt};

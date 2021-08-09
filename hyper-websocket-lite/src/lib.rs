@@ -5,9 +5,9 @@
 
 use std::future::Future;
 
-use hyper::header::{self, HeaderValue};
+use hyper::header::HeaderValue;
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{header, Body, Request, Response, StatusCode};
 use tokio::task;
 use tokio_util::codec::{Decoder, Framed};
 use websocket_codec::{ClientRequest, MessageCodec};
