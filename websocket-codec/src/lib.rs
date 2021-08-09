@@ -24,6 +24,7 @@ mod upgrade;
 
 pub mod protocol;
 
+pub use crate::close::{CloseCode, CloseFrame};
 pub use crate::message::{Message, MessageCodec};
 pub use crate::opcode::Opcode;
 pub use crate::upgrade::{ClientRequest, UpgradeCodec};

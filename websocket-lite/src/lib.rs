@@ -22,7 +22,7 @@ mod ssl;
 pub use crate::client::ClientBuilder;
 pub use crate::ssl::{Connector, MaybeTlsStream};
 
-pub use websocket_codec::{Error, Message, MessageCodec, Opcode, Result};
+pub use websocket_codec::{CloseCode, CloseFrame, Error, Message, MessageCodec, Opcode, Result};
 
 use tokio_util::codec::Framed;
 
