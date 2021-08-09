@@ -4,7 +4,7 @@ use std::net::{SocketAddr, TcpStream as StdTcpStream};
 use std::result;
 use std::str;
 
-use futures::StreamExt;
+use futures_util::StreamExt;
 use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt},
     net::TcpStream as TokioTcpStream,

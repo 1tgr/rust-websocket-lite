@@ -10,14 +10,14 @@ edition = "2018"
 [dependencies]
 base64 = "0.13"
 bytes = "1"
-futures = "0.3"
+futures-util = { version = "0.3", default-features = false }
 native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.8"
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.6", default-features = false, features = ["codec"] }
 tokio-openssl = { version = "0.6", optional = true }
 tokio-native-tls = { version = "0.3", optional = true }
-tokio = { version = "1", features = ["net", "io-util"] }
+tokio = { version = "1", default-features = false, features = ["net", "io-util"] }
 url = "2"
 websocket-codec = { version = "0.5", path = "../websocket-codec" }
 
