@@ -12,14 +12,12 @@ mod inner {
     use crate::{Error, Result};
 
     pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(
-        domain: String,
+        domain: &str,
         stream: S,
     ) -> Result<tokio_native_tls::TlsStream<S>> {
         let builder = TlsConnector::builder();
         let cx = builder.build()?;
-        Ok(tokio_native_tls::TlsConnector::from(cx)
-            .connect(&domain, stream)
-            .await?)
+        Ok(tokio_native_tls::TlsConnector::from(cx).connect(domain, stream).await?)
     }
 
     pub fn wrap<S: Read + Write + Debug + 'static>(domain: &str, stream: S) -> Result<::native_tls::TlsStream<S>> {
@@ -37,52 +35,33 @@ mod inner {
 
 #[cfg(feature = "ssl-openssl")]
 mod inner {
-    use std::env;
-    use std::fmt::Debug;
-    use std::fs::File;
     use std::io::{Read, Write};
-    use std::sync::Mutex;
+    use std::pin::Pin;
 
-    use futures::{Future, IntoFuture};
-    use openssl::ssl::{SslConnector, SslConnectorBuilder, SslMethod};
+    use openssl::ssl::{SslConnector, SslMethod};
     use tokio::io::{AsyncRead, AsyncWrite};
-    use tokio_openssl::SslConnectorExt;
+    use tokio_openssl::SslStream;
 
-    use {Error, Result};
+    use crate::Result;
 
-    fn configure(cx: &mut SslConnectorBuilder) -> Result<()> {
-        if let Ok(filename) = env::var("SSLKEYLOGFILE") {
-            let file = Mutex::new(File::create(filename)?);
-            cx.set_keylog_callback(move |_ssl, line| {
-                let mut file = file.lock().unwrap();
-                let _ = writeln!(&mut file, "{}", line);
-            });
-        }
-
-        Ok(())
+    pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(domain: &str, stream: S) -> Result<SslStream<S>> {
+        let ssl = SslConnector::builder(SslMethod::tls())?
+            .build()
+            .configure()?
+            .into_ssl(domain)?;
+        let mut stream = SslStream::new(ssl, stream)?;
+        Pin::new(&mut stream).connect().await?;
+        Ok(stream)
     }
 
-    pub fn async_wrap<S: AsyncRead + AsyncWrite>(
-        domain: String,
-        stream: S,
-    ) -> impl Future<Item = ::tokio_openssl::SslStream<S>, Error = Error> {
-        SslConnector::builder(SslMethod::tls())
-            .map_err(Into::into)
-            .into_future()
-            .and_then(|mut cx| {
-                configure(&mut cx)?;
-                Ok(cx)
-            })
-            .and_then(move |cx| cx.build().connect_async(&domain, stream).map_err(Into::into))
-    }
-
-    pub fn wrap<S: Read + Write>(
-        domain: &str,
-        stream: S,
-    ) -> impl Future<Item = ::openssl::SslStream<S>, Error = Error> {
-        let mut cx = SslConnector::builder(SslMethod::tls())?;
-        configure(&mut cx)?;
-        Ok(cx.build().connect(domain, stream)?)
+    pub fn wrap<S: Read + Write>(domain: &str, stream: S) -> Result<openssl::ssl::SslStream<S>> {
+        let ssl = SslConnector::builder(SslMethod::tls())?
+            .build()
+            .configure()?
+            .into_ssl(domain)?;
+        let mut stream = openssl::ssl::SslStream::new(ssl, stream)?;
+        stream.connect()?;
+        Ok(stream)
     }
 }
 

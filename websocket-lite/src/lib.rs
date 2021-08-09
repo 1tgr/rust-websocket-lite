@@ -1,5 +1,7 @@
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
+#![deny(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 //! A fast, low-overhead WebSocket client.
