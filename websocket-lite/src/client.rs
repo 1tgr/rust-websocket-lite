@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream as StdTcpStream};
-use std::{fmt, result, str};
+use std::{fmt, mem, result, str};
 
 use futures_util::StreamExt;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
@@ -9,7 +9,9 @@ use tokio_util::codec::{Decoder, Framed};
 use url::Url;
 use websocket_codec::UpgradeCodec;
 
-use crate::{sync, AsyncClient, Client, MessageCodec, Result};
+use crate::{
+    sync, AsyncClient, AsyncConnector, AsyncMaybeTlsStream, Client, Connector, MaybeTlsStream, MessageCodec, Result,
+};
 
 fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
 where
@@ -86,6 +88,8 @@ fn build_request(url: &Url, key: &str, headers: &[(String, String)]) -> String {
 /// `ws://...` and `wss://...` URLs are supported.
 pub struct ClientBuilder {
     url: Url,
+    connector: Option<Connector>,
+    async_connector: Option<AsyncConnector>,
     key: Option<[u8; 16]>,
     headers: Vec<(String, String)>,
 }
@@ -107,13 +111,26 @@ impl ClientBuilder {
     pub fn from_url(url: Url) -> Self {
         ClientBuilder {
             url,
+            connector: None,
+            async_connector: None,
             key: None,
             headers: Vec::new(),
         }
     }
 
-    /// Adds an extra HTTP header for client
-    ///
+    /// Sets the SSL connector for the `connect` method.
+    /// By default, the client will create a new one for each connection instead of reusing one.
+    pub fn set_connector(&mut self, connector: Connector) -> Option<Connector> {
+        mem::replace(&mut self.connector, Some(connector))
+    }
+
+    /// Sets the SSL connector for the `async_connect` method.
+    /// By default, the client will create a new one for each connection instead of reusing one.
+    pub fn set_async_connector(&mut self, connector: AsyncConnector) -> Option<AsyncConnector> {
+        mem::replace(&mut self.async_connector, Some(connector))
+    }
+
+    /// Adds an extra HTTP header for the client
     pub fn add_header(&mut self, name: String, value: String) {
         self.headers.push((name, value));
     }
@@ -151,20 +168,20 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if connecting to the server fails.
-    #[cfg(any(feature = "ssl-native-tls", feature = "ssl-openssl"))]
-    pub async fn async_connect(
-        self,
-    ) -> Result<AsyncClient<Box<dyn crate::AsyncNetworkStream + Sync + Send + Unpin + 'static>>> {
+    pub async fn async_connect(mut self) -> Result<AsyncClient<AsyncMaybeTlsStream>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
 
-        let stream: Box<dyn crate::AsyncNetworkStream + Sync + Send + Unpin + 'static> = if self.url.scheme() == "wss" {
-            let domain = self.url.domain().unwrap_or("").to_owned();
-            let stream = crate::ssl::async_wrap(domain, stream).await?;
-            Box::new(stream)
+        let connector = if let Some(connector) = self.async_connector.take() {
+            connector
+        } else if self.url.scheme() == "wss" {
+            AsyncConnector::new_with_default_tls_config()?
         } else {
-            Box::new(stream)
+            AsyncConnector::Plain
         };
+
+        let domain = self.url.domain().unwrap_or("");
+        let stream = connector.wrap(domain, stream).await?;
 
         self.async_connect_on(stream).await
     }
@@ -174,18 +191,20 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if connecting to the server fails.
-    #[cfg(any(feature = "ssl-native-tls", feature = "ssl-openssl"))]
-    pub fn connect(self) -> Result<Client<Box<dyn crate::NetworkStream + Sync + Send + 'static>>> {
+    pub fn connect(mut self) -> Result<Client<MaybeTlsStream>> {
         let addr = resolve(&self.url)?;
         let stream = StdTcpStream::connect(&addr)?;
 
-        let stream: Box<dyn crate::NetworkStream + Sync + Send + 'static> = if self.url.scheme() == "wss" {
-            let domain = self.url.domain().unwrap_or("");
-            let stream = crate::ssl::wrap(domain, stream)?;
-            Box::new(stream)
+        let connector = if let Some(connector) = self.connector.take() {
+            connector
+        } else if self.url.scheme() == "wss" {
+            Connector::new_with_default_tls_config()?
         } else {
-            Box::new(stream)
+            Connector::Plain
         };
+
+        let domain = self.url.domain().unwrap_or("");
+        let stream = connector.wrap(domain, stream)?;
 
         self.connect_on(stream)
     }

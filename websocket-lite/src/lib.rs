@@ -20,23 +20,11 @@ mod ssl;
 mod sync;
 
 pub use crate::client::ClientBuilder;
+pub use crate::ssl::{AsyncConnector, AsyncMaybeTlsStream, Connector, MaybeTlsStream};
 
 pub use websocket_codec::{CloseCode, CloseFrame, Error, Message, MessageCodec, Opcode, Result};
 
-use std::io::{Read, Write};
-
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::Framed;
-
-/// Used by [`AsyncClient`](type.AsyncClient.html) to represent types that are `AsyncRead` and `AsyncWrite`.
-pub trait AsyncNetworkStream: AsyncRead + AsyncWrite {}
-
-impl<S> AsyncNetworkStream for S where S: AsyncRead + AsyncWrite {}
-
-/// Used by [`Client`](type.Client.html) to represent types that are `Read` and `Write`.
-pub trait NetworkStream: Read + Write {}
-
-impl<S> NetworkStream for S where S: Read + Write {}
 
 /// Exposes a `Sink` and a `Stream` for sending and receiving WebSocket messages asynchronously.
 pub type AsyncClient<S> = Framed<S, MessageCodec>;

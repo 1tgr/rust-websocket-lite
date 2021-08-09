@@ -52,7 +52,7 @@ RUN \
     echo "fn main() {}" > websocket-lite/examples/wsdump.rs
 
 ENV RUSTFLAGS=-Dwarnings
-RUN cargo build --release --workspace --exclude fuzz --all-targets
+RUN cargo build --workspace --exclude fuzz --all-targets --all-features
 
 COPY . .
 RUN find . -name "*.rs" | grep -v "^\./target" | xargs touch
