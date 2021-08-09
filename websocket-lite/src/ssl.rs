@@ -1,7 +1,10 @@
-use std::pin::Pin;
 #[cfg(feature = "__ssl-rustls")]
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    pin::Pin,
+};
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 #[cfg(feature = "__ssl-rustls")]
@@ -14,7 +17,7 @@ compile_error!("Only one TLS backend may be enabled at once");
 #[cfg(all(feature = "ssl-rustls-webpki-roots", feature = "ssl-rustls-native-roots"))]
 compile_error!("Only one of ssl-rustls-webpki-roots and ssl-rustls-native-roots may be enabled at once");
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Connector {
     /// Plain (non-TLS) connector.
     Plain,
@@ -24,6 +27,18 @@ pub enum Connector {
     /// `rustls` TLS connector.
     #[cfg(feature = "__ssl-rustls")]
     Rustls(tokio_rustls::TlsConnector),
+}
+
+impl Debug for Connector {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Plain => f.write_str("Connector::Plain"),
+            #[cfg(feature = "ssl-native-tls")]
+            Self::NativeTls(connector) => connector.fmt(f),
+            #[cfg(feature = "__ssl-rustls")]
+            Self::Rustls(_) => f.write_str("Connector::Rustls"),
+        }
+    }
 }
 
 /// A stream that might be protected with TLS.
