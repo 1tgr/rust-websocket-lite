@@ -5,7 +5,7 @@ use websocket_lite::{Message, Opcode, Result};
 #[tokio::main]
 async fn main() -> Result<()> {
     let builder = websocket_lite::ClientBuilder::new("wss://gateway.discord.gg/?v=9&encoding=json")?;
-    let mut ws_stream = builder.async_connect().await?;
+    let mut ws_stream = builder.connect().await?;
 
     let identify_payload = format!(
         "{{\"op\": 2, \"d\": {{\"token\": \"{}\", \"intents\": 32509, \"properties\": {{\"$os\": \"linux\", \"$browser\": \"rust-websocket-lite\", \"$device\": \"rust-websocket-lite\"}}}}}}",

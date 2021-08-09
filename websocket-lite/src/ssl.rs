@@ -1,93 +1,136 @@
+use std::pin::Pin;
+#[cfg(feature = "__ssl-rustls")]
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+#[cfg(feature = "__ssl-rustls")]
+use tokio_rustls::{rustls::ClientConfig, webpki::DNSNameRef};
+
+use crate::Result;
+
 #[cfg(all(feature = "ssl-native-tls", feature = "__ssl-rustls"))]
 compile_error!("Only one TLS backend may be enabled at once");
 #[cfg(all(feature = "ssl-rustls-webpki-roots", feature = "ssl-rustls-native-roots"))]
 compile_error!("Only one of ssl-rustls-webpki-roots and ssl-rustls-native-roots may be enabled at once");
 
-#[cfg(feature = "ssl-native-tls")]
-mod inner {
-    use std::fmt::Debug;
-    use std::io::{Read, Write};
-
-    use native_tls::{HandshakeError, TlsConnector};
-    use tokio::io::{AsyncRead, AsyncWrite};
-
-    use crate::{Error, Result};
-
-    pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(
-        domain: &str,
-        stream: S,
-    ) -> Result<tokio_native_tls::TlsStream<S>> {
-        let builder = TlsConnector::builder();
-        let cx = builder.build()?;
-        Ok(tokio_native_tls::TlsConnector::from(cx).connect(domain, stream).await?)
-    }
-
-    pub fn wrap<S: Read + Write + Debug + 'static>(domain: &str, stream: S) -> Result<::native_tls::TlsStream<S>> {
-        let builder = TlsConnector::builder();
-        let cx = builder.build()?;
-        cx.connect(domain, stream).map_err(|e| {
-            if let HandshakeError::Failure(e) = e {
-                Error::from(e)
-            } else {
-                Error::from(e.to_string())
-            }
-        })
-    }
+#[derive(Clone)]
+pub enum Connector {
+    /// Plain (non-TLS) connector.
+    Plain,
+    /// `native-tls` TLS connector.
+    #[cfg(feature = "ssl-native-tls")]
+    NativeTls(tokio_native_tls::TlsConnector),
+    /// `rustls` TLS connector.
+    #[cfg(feature = "__ssl-rustls")]
+    Rustls(tokio_rustls::TlsConnector),
 }
 
-#[cfg(any(feature = "ssl-rustls-webpki-roots", feature = "ssl-rustls-native-roots"))]
-mod inner {
-    use std::fmt::Debug;
-    use std::io::{Read, Write};
-    use std::sync::Arc;
+/// A stream that might be protected with TLS.
+pub enum MaybeTlsStream<S> {
+    /// Unencrypted socket stream.
+    Plain(S),
+    /// Encrypted socket stream using `native-tls`.
+    #[cfg(feature = "ssl-native-tls")]
+    NativeTls(tokio_native_tls::TlsStream<S>),
+    /// Encrypted socket stream using `rustls`.
+    #[cfg(feature = "__ssl-rustls")]
+    Rustls(tokio_rustls::client::TlsStream<S>),
+}
 
-    use tokio::io::{AsyncRead, AsyncWrite};
-    use tokio_rustls::{rustls, webpki::DNSNameRef, TlsConnector};
-
-    use crate::Result;
-
-    #[cfg(feature = "ssl-rustls-webpki-roots")]
-    fn get_client_config() -> Arc<rustls::ClientConfig> {
-        let mut config = rustls::ClientConfig::new();
-        config
-            .root_store
-            .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-        Arc::new(config)
-    }
-
-    #[cfg(feature = "ssl-rustls-native-roots")]
-    fn get_client_config() -> Arc<rustls::ClientConfig> {
-        let mut config = rustls::ClientConfig::new();
-        config.root_store = match rustls_native_certs::load_native_certs() {
-            Ok(store) | Err((Some(store), _)) => store,
-            Err((None, err)) => Err(err).expect("cannot access native cert store"),
-        };
-        if config.root_store.is_empty() {
-            panic!("no CA certificates found");
+impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MaybeTlsStream<S> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            Self::Plain(ref mut s) => Pin::new(s).poll_read(cx, buf),
+            #[cfg(feature = "ssl-native-tls")]
+            Self::NativeTls(s) => Pin::new(s).poll_read(cx, buf),
+            #[cfg(feature = "__ssl-rustls")]
+            Self::Rustls(s) => Pin::new(s).poll_read(cx, buf),
         }
-        Arc::new(config)
-    }
-
-    pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(
-        domain: &str,
-        stream: S,
-    ) -> Result<tokio_rustls::client::TlsStream<S>> {
-        let connector = TlsConnector::from(get_client_config());
-        let tls_stream = connector
-            .connect(DNSNameRef::try_from_ascii_str(domain)?, stream)
-            .await?;
-
-        Ok(tls_stream)
-    }
-
-    pub fn wrap<S: Read + Write + Debug + 'static>(
-        domain: &str,
-        stream: S,
-    ) -> Result<rustls::StreamOwned<rustls::ClientSession, S>> {
-        let session = rustls::ClientSession::new(&get_client_config(), DNSNameRef::try_from_ascii_str(domain)?);
-        Ok(rustls::StreamOwned::new(session, stream))
     }
 }
 
-#[cfg(feature = "__ssl")]
-pub use self::inner::*;
+impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MaybeTlsStream<S> {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        match self.get_mut() {
+            Self::Plain(ref mut s) => Pin::new(s).poll_write(cx, buf),
+            #[cfg(feature = "ssl-native-tls")]
+            Self::NativeTls(s) => Pin::new(s).poll_write(cx, buf),
+            #[cfg(feature = "__ssl-rustls")]
+            Self::Rustls(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::result::Result<(), std::io::Error>> {
+        match self.get_mut() {
+            Self::Plain(ref mut s) => Pin::new(s).poll_flush(cx),
+            #[cfg(feature = "ssl-native-tls")]
+            Self::NativeTls(s) => Pin::new(s).poll_flush(cx),
+            #[cfg(feature = "__ssl-rustls")]
+            Self::Rustls(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::result::Result<(), std::io::Error>> {
+        match self.get_mut() {
+            Self::Plain(ref mut s) => Pin::new(s).poll_shutdown(cx),
+            #[cfg(feature = "ssl-native-tls")]
+            Self::NativeTls(s) => Pin::new(s).poll_shutdown(cx),
+            #[cfg(feature = "__ssl-rustls")]
+            Self::Rustls(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
+}
+
+impl Connector {
+    pub fn with_default_tls_config() -> Result<Self> {
+        #[cfg(not(feature = "__ssl"))]
+        {
+            Ok(Self::Plain)
+        }
+        #[cfg(feature = "ssl-native-tls")]
+        {
+            Ok(Self::NativeTls(native_tls::TlsConnector::new()?.into()))
+        }
+        #[cfg(feature = "ssl-rustls-webpki-roots")]
+        {
+            let mut config = ClientConfig::new();
+            config
+                .root_store
+                .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+            let connector = tokio_rustls::TlsConnector::from(Arc::new(config));
+            Ok(Self::Rustls(connector))
+        }
+        #[cfg(feature = "ssl-rustls-native-roots")]
+        {
+            let mut config = ClientConfig::new();
+            config.root_store = match rustls_native_certs::load_native_certs() {
+                Ok(store) | Err((Some(store), _)) => store,
+                Err((None, err)) => Err(err)?,
+            };
+            if config.root_store.is_empty() {
+                panic!("no CA certificates found");
+            }
+            let connector = tokio_rustls::TlsConnector::from(Arc::new(config));
+            Ok(Self::Rustls(connector))
+        }
+    }
+
+    pub async fn wrap<S: AsyncRead + AsyncWrite + Unpin>(&self, domain: &str, stream: S) -> Result<MaybeTlsStream<S>> {
+        match self {
+            Self::Plain => Ok(MaybeTlsStream::Plain(stream)),
+            #[cfg(feature = "ssl-native-tls")]
+            Self::NativeTls(connector) => Ok(MaybeTlsStream::NativeTls(connector.connect(domain, stream).await?)),
+            #[cfg(feature = "__ssl-rustls")]
+            Self::Rustls(connector) => Ok(MaybeTlsStream::Rustls(
+                connector
+                    .connect(DNSNameRef::try_from_ascii_str(domain)?, stream)
+                    .await?,
+            )),
+        }
+    }
+}
