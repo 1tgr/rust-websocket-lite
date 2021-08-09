@@ -14,7 +14,7 @@ compile_error!("Only one TLS backend may be enabled at once");
 #[cfg(all(feature = "ssl-rustls-webpki-roots", feature = "ssl-rustls-native-roots"))]
 compile_error!("Only one of ssl-rustls-webpki-roots and ssl-rustls-native-roots may be enabled at once");
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Connector {
     /// Plain (non-TLS) connector.
     Plain,
