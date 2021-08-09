@@ -134,7 +134,7 @@ impl Message {
     /// For messages with opcode [`Opcode::Close`](enum.Opcode.html), returns the close code and reason.
     /// Returns `None` otherwise.
     pub fn as_close(&self) -> Option<(u16, &str)> {
-        if let Opcode::Close = self.opcode {
+        if matches!(self.opcode, Opcode::Close) && self.data.len() > 1 {
             let mut code_arr = [0; 2];
             code_arr.copy_from_slice(&self.data[..2]);
             Some((u16::from_be_bytes(code_arr), unsafe {

@@ -17,6 +17,7 @@ compile_error!("Only one TLS backend may be enabled at once");
 #[cfg(all(feature = "ssl-rustls-webpki-roots", feature = "ssl-rustls-native-roots"))]
 compile_error!("Only one of ssl-rustls-webpki-roots and ssl-rustls-native-roots may be enabled at once");
 
+/// A reusable TLS connector for wrapping streams.
 #[derive(Clone)]
 pub enum Connector {
     /// Plain (non-TLS) connector.
@@ -102,6 +103,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MaybeTlsStream<S> {
 }
 
 impl Connector {
+    /// Creates a new `Connector` with the underlying TLS library specified in the feature flags.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` when creating the underlying TLS connector fails.
     pub fn with_default_tls_config() -> Result<Self> {
         #[cfg(not(feature = "__ssl"))]
         {
@@ -135,6 +141,11 @@ impl Connector {
         }
     }
 
+    /// Wraps a given stream with a layer of TLS.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` if the TLS handshake fails.
     pub async fn wrap<S: AsyncRead + AsyncWrite + Unpin>(&self, domain: &str, stream: S) -> Result<MaybeTlsStream<S>> {
         match self {
             Self::Plain => Ok(MaybeTlsStream::Plain(stream)),
