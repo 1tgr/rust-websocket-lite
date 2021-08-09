@@ -341,7 +341,7 @@ mod tests {
             rsv: 0,
             opcode: if is_text { 1 } else { 2 },
             mask: mask.map(|n| n.into()),
-            data_len: (data_len as u64).into(),
+            data_len: u64::from(data_len).into(),
         });
 
         assert_allocated_bytes((header.header_len() + data_len as usize).max(8), || {

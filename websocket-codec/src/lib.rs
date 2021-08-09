@@ -15,6 +15,7 @@ extern crate quickcheck_macros;
 #[cfg(all(feature = "nightly", test))]
 extern crate test;
 
+mod close;
 mod frame;
 mod mask;
 mod message;

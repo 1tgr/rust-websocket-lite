@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn can_mask() {
-        let mask = Mask::from(0xff000001u32.to_be());
+        let mask = Mask::from(0xff00_0001_u32.to_be());
         let orig_data = Bytes::from_static(DATA);
 
         let mut data = BytesMut::with_capacity(orig_data.len());

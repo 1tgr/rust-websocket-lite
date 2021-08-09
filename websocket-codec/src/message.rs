@@ -6,6 +6,7 @@ use std::usize;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
+use crate::close::{CloseCode, CloseFrame};
 use crate::frame::FrameHeader;
 use crate::mask::{self, Mask};
 use crate::opcode::Opcode;
@@ -19,13 +20,13 @@ pub struct Message {
 }
 
 impl Message {
-    /// Creates a message from a `Bytes` object.
+    /// Creates a message from a [`Bytes`] object.
     ///
     /// The message can be tagged as text or binary.
     ///
     /// # Errors
     ///
-    /// When the `opcode` parameter is [`Opcode::Text`](enum.Opcode.html)
+    /// When the `opcode` parameter is [`Opcode::Text`]
     /// this function validates the bytes in `data` and returns `Err` if they do not contain valid UTF-8 text.
     pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
         let data = data.into();
@@ -45,7 +46,7 @@ impl Message {
         }
     }
 
-    /// Creates a binary message from any type that can be converted to `Bytes`, such as `&[u8]` or `Vec<u8>`.
+    /// Creates a binary message from any type that can be converted to [`Bytes`], such as `&[u8]` or `Vec<u8>`.
     pub fn binary<B: Into<Bytes>>(data: B) -> Self {
         Message {
             opcode: Opcode::Binary,
@@ -68,17 +69,15 @@ impl Message {
     /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
     /// may be defined by a particular WebSocket server.
     #[must_use]
-    pub fn close(reason: Option<(u16, String)>) -> Self {
-        let data = if let Some((code, reason)) = reason {
-            let reason: Bytes = reason.into();
+    pub fn close(reason: Option<CloseFrame>) -> Self {
+        let data = reason.map_or_else(Bytes::new, |close_frame| {
+            let reason: Bytes = close_frame.reason.into();
             let mut buf = BytesMut::new();
             buf.reserve(2 + reason.len());
-            buf.put_u16(code);
+            buf.put_u16(close_frame.code.into());
             buf.put(reason);
             buf.freeze()
-        } else {
-            Bytes::new()
-        };
+        });
 
         Message {
             opcode: Opcode::Close,
@@ -121,7 +120,7 @@ impl Message {
         self.data
     }
 
-    /// For messages with opcode [`Opcode::Text`](enum.Opcode.html), returns a reference to the text.
+    /// For messages with opcode [`Opcode::Text`], returns a reference to the text.
     /// Returns `None` otherwise.
     pub fn as_text(&self) -> Option<&str> {
         if self.opcode.is_text() {
@@ -131,22 +130,25 @@ impl Message {
         }
     }
 
-    /// For messages with opcode [`Opcode::Close`](enum.Opcode.html), returns the close code and reason.
+    /// For messages with opcode [`Opcode::Close`], returns the [`CloseFrame`].
     /// Returns `None` otherwise.
-    pub fn as_close(&self) -> Option<(u16, &str)> {
+    pub fn as_close(&self) -> Option<CloseFrame> {
         if matches!(self.opcode, Opcode::Close) && self.data.len() > 1 {
             let mut code_arr = [0; 2];
             code_arr.copy_from_slice(&self.data[..2]);
-            Some((u16::from_be_bytes(code_arr), unsafe {
-                str::from_utf8_unchecked(&self.data[2..])
-            }))
+            let code = u16::from_be_bytes(code_arr);
+            let reason = unsafe { str::from_utf8_unchecked(&self.data[2..]) };
+            Some(CloseFrame {
+                code: CloseCode::from(code),
+                reason: reason.to_string(),
+            })
         } else {
             None
         }
     }
 }
 
-/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
+/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`] structs.
 #[derive(Clone)]
 pub struct MessageCodec {
     interrupted_message: Option<(Opcode, BytesMut)>,
