@@ -21,6 +21,7 @@ pub enum DataLength {
 }
 
 impl From<u64> for DataLength {
+    #[allow(clippy::cast_possible_truncation)]
     fn from(n: u64) -> Self {
         if n <= 125 {
             Self::Small(n as u8)
@@ -37,13 +38,13 @@ impl TryFrom<DataLength> for u64 {
 
     fn try_from(len: DataLength) -> Result<Self> {
         match len {
-            DataLength::Small(n) => Ok(n as u64),
+            DataLength::Small(n) => Ok(u64::from(n)),
             DataLength::Medium(n) => {
                 if n <= 125 {
                     return Err(format!("payload length {} should not be represented using 16 bits", n).into());
                 }
 
-                Ok(n as u64)
+                Ok(u64::from(n))
             }
             DataLength::Large(n) => {
                 if n <= 65535 {
@@ -69,6 +70,7 @@ impl From<usize> for DataLength {
 impl TryFrom<DataLength> for usize {
     type Error = Error;
 
+    #[allow(clippy::cast_possible_truncation)]
     fn try_from(len: DataLength) -> Result<Self> {
         let len = u64::try_from(len)?;
         if len > usize::MAX as u64 {
@@ -99,6 +101,7 @@ pub struct FrameHeader {
 
 impl FrameHeader {
     /// Returns a `FrameHeader` struct.
+    #[must_use]
     pub fn new(fin: bool, rsv: u8, opcode: u8, mask: Option<Mask>, data_len: DataLength) -> Self {
         Self {
             fin,
@@ -110,6 +113,7 @@ impl FrameHeader {
     }
 
     /// Returns the WebSocket FIN bit, which indicates that this is the last frame in the message.
+    #[must_use]
     pub fn fin(&self) -> bool {
         self.fin
     }
@@ -117,21 +121,25 @@ impl FrameHeader {
     /// Returns the WebSocket RSV1, RSV2 and RSV3 bits.
     ///
     /// The RSV bits may be used by extensions to the WebSocket protocol not exposed by this crate.
+    #[must_use]
     pub fn rsv(&self) -> u8 {
         self.rsv
     }
 
     /// Returns the WebSocket opcode, which defines the interpretation of the frame payload data.
+    #[must_use]
     pub fn opcode(&self) -> u8 {
         self.opcode
     }
 
     /// Returns the frame's mask.
+    #[must_use]
     pub fn mask(&self) -> Option<Mask> {
         self.mask
     }
 
     /// Returns the length of the payload data that follows this header.
+    #[must_use]
     pub fn data_len(&self) -> DataLength {
         self.data_len
     }
@@ -140,6 +148,7 @@ impl FrameHeader {
     ///
     /// The frame header is between 2 bytes and 10 bytes in length, depending on the presence of a mask
     /// and the length of the payload data.
+    #[must_use]
     pub fn header_len(&self) -> usize {
         let mut len = 1 /* fin|opcode */ + 1 /* mask|len1 */;
         len += match self.data_len {
@@ -226,7 +235,7 @@ impl FrameHeader {
 
         let mut fin_opcode = rsv | opcode;
         if fin {
-            fin_opcode |= 0x80
+            fin_opcode |= 0x80;
         };
 
         dst[0] = fin_opcode;
@@ -257,6 +266,7 @@ impl FrameHeader {
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn write_to_bytes(&self, dst: &mut BytesMut) {
         let data_len = match self.data_len {
             DataLength::Small(n) => n as usize,

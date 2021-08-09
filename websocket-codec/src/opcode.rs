@@ -15,11 +15,13 @@ pub enum Opcode {
 
 impl Opcode {
     /// Returns `true` if `self` is `Text`.
+    #[must_use]
     pub fn is_text(self) -> bool {
         matches!(self, Self::Text)
     }
 
     /// Returns `true` if `self` is `Close`, `Ping` or `Pong`.
+    #[must_use]
     pub fn is_control(self) -> bool {
         matches!(self, Self::Close | Self::Ping | Self::Pong)
     }
@@ -27,6 +29,7 @@ impl Opcode {
     /// Converts `u8` to `Opcode`.
     ///
     /// Returns `None` for unrecognised and unsupported opcodes.
+    #[must_use]
     pub fn try_from(data: u8) -> Option<Self> {
         let opcode = match data {
             1 => Self::Text,

@@ -22,6 +22,7 @@ impl From<Mask> for u32 {
 }
 
 /// Masks *by copying* data sent by a client, and unmasks data received by a server.
+#[allow(clippy::shadow_unrelated)]
 pub fn mask_slice_copy(buf: &mut [u8], data: &[u8], Mask(mask): Mask) {
     assert_eq!(buf.len(), data.len());
 
@@ -55,11 +56,12 @@ fn mask_unaligned_copy(buf: &mut [u32], data: &[u8], mask: u32) {
 
     for (dest, src) in buf.iter_mut().zip(data) {
         #[allow(clippy::cast_ptr_alignment)]
-        let src = unsafe { (src.as_ptr() as *const u32).read_unaligned() };
+        let src = unsafe { (src.as_ptr().cast::<u32>()).read_unaligned() };
         *dest = src ^ mask;
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn mask_u8_copy(buf: &mut [u8], data: &[u8], mut mask: u32) -> u32 {
     assert!(data.len() < 4);
     assert_eq!(buf.len(), data.len());
@@ -80,6 +82,7 @@ pub fn mask_slice(data: &mut [u8], Mask(mask): Mask) {
     mask_u8_in_place(data3, mask);
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn mask_u8_in_place(data: &mut [u8], mut mask: u32) -> u32 {
     assert!(data.len() < 4);
 

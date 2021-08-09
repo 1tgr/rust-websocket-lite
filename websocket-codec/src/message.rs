@@ -21,7 +21,11 @@ pub struct Message {
 impl Message {
     /// Creates a message from a `Bytes` object.
     ///
-    /// The message can be tagged as text or binary. When the `opcode` parameter is [`Opcode::Text`](enum.Opcode.html)
+    /// The message can be tagged as text or binary.
+    ///
+    /// # Errors
+    ///
+    /// When the `opcode` parameter is [`Opcode::Text`](enum.Opcode.html)
     /// this function validates the bytes in `data` and returns `Err` if they do not contain valid UTF-8 text.
     pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
         let data = data.into();
@@ -63,6 +67,7 @@ impl Message {
     ///
     /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
     /// may be defined by a particular WebSocket server.
+    #[must_use]
     pub fn close(reason: Option<(u16, String)>) -> Self {
         let data = if let Some((code, reason)) = reason {
             let reason: Bytes = reason.into();
@@ -138,6 +143,7 @@ impl MessageCodec {
     /// Creates a `MessageCodec` for a client.
     ///
     /// Encoded messages are masked.
+    #[must_use]
     pub fn client() -> Self {
         Self::with_masked_encode(true)
     }
@@ -145,11 +151,13 @@ impl MessageCodec {
     /// Creates a `MessageCodec` for a server.
     ///
     /// Encoded messages are not masked.
+    #[must_use]
     pub fn server() -> Self {
         Self::with_masked_encode(false)
     }
 
     /// Creates a `MessageCodec` while specifying whether to use message masking while encoding.
+    #[must_use]
     pub fn with_masked_encode(use_mask: bool) -> Self {
         Self {
             use_mask,
@@ -165,7 +173,7 @@ impl Decoder for MessageCodec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>> {
         let mut state = self.interrupted_message.take();
         let (opcode, data) = loop {
-            let (header, header_len) = if let Some(tuple) = FrameHeader::parse_slice(&src) {
+            let (header, header_len) = if let Some(tuple) = FrameHeader::parse_slice(src) {
                 tuple
             } else {
                 // The buffer isn't big enough for the frame header. Reserve additional space for a frame header,
@@ -218,7 +226,7 @@ impl Decoder for MessageCodec {
             if let Some(mask) = mask {
                 // Note: clients never need decode masked messages because masking is only used for client -> server frames.
                 // However this code is used to test round tripping of masked messages.
-                mask::mask_slice(&mut data, mask)
+                mask::mask_slice(&mut data, mask);
             };
 
             let opcode = if opcode == 0 {
@@ -244,15 +252,15 @@ impl Decoder for MessageCodec {
                     }
 
                     return Err(format!("continuation frame must have continuation opcode, not {:?}", opcode).into());
-                } else {
-                    partial_data.extend_from_slice(&data);
-
-                    if fin {
-                        break (partial_opcode, partial_data);
-                    }
-
-                    Some((partial_opcode, partial_data))
                 }
+
+                partial_data.extend_from_slice(&data);
+
+                if fin {
+                    break (partial_opcode, partial_data);
+                }
+
+                Some((partial_opcode, partial_data))
             } else if let Some(opcode) = opcode {
                 if fin {
                     break (opcode, data);
