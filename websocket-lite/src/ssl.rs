@@ -1,5 +1,7 @@
-#[cfg(all(feature = "ssl-native-tls", feature = "ssl-openssl"))]
-compile_error!("Features ssl-native-tls and ssl-openssl can't be used at the same time");
+#[cfg(all(feature = "ssl-native-tls", feature = "__ssl-rustls"))]
+compile_error!("Only one TLS backend may be enabled at once");
+#[cfg(all(feature = "ssl-rustls-webpki-roots", feature = "ssl-rustls-native-roots"))]
+compile_error!("Only one of ssl-rustls-webpki-roots and ssl-rustls-native-roots may be enabled at once");
 
 #[cfg(feature = "ssl-native-tls")]
 mod inner {
@@ -30,38 +32,6 @@ mod inner {
                 Error::from(e.to_string())
             }
         })
-    }
-}
-
-#[cfg(feature = "ssl-openssl")]
-mod inner {
-    use std::io::{Read, Write};
-    use std::pin::Pin;
-
-    use openssl::ssl::{SslConnector, SslMethod};
-    use tokio::io::{AsyncRead, AsyncWrite};
-    use tokio_openssl::SslStream;
-
-    use crate::Result;
-
-    pub async fn async_wrap<S: AsyncRead + AsyncWrite + Unpin>(domain: &str, stream: S) -> Result<SslStream<S>> {
-        let ssl = SslConnector::builder(SslMethod::tls())?
-            .build()
-            .configure()?
-            .into_ssl(domain)?;
-        let mut stream = SslStream::new(ssl, stream)?;
-        Pin::new(&mut stream).connect().await?;
-        Ok(stream)
-    }
-
-    pub fn wrap<S: Read + Write>(domain: &str, stream: S) -> Result<openssl::ssl::SslStream<S>> {
-        let ssl = SslConnector::builder(SslMethod::tls())?
-            .build()
-            .configure()?
-            .into_ssl(domain)?;
-        let mut stream = openssl::ssl::SslStream::new(ssl, stream)?;
-        stream.connect()?;
-        Ok(stream)
     }
 }
 
