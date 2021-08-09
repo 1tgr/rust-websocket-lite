@@ -25,6 +25,7 @@ webpki-roots = { version = "0.21", optional = true }
 websocket-codec = { version = "0.5", path = "../websocket-codec" }
 
 [dev-dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 structopt = "0.3"
 tokio = { version = "1", features = ["macros", "time", "io-std", "rt-multi-thread"] }
 

@@ -1,7 +1,7 @@
 use std::env;
 
-use futures::sink::SinkExt;
-use futures::stream::StreamExt;
+use futures_util::sink::SinkExt;
+use futures_util::StreamExt;
 use websocket_lite::{Message, Opcode, Result};
 
 async fn run() -> Result<()> {
