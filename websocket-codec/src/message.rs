@@ -359,7 +359,7 @@ mod tests {
             || {
                 MessageCodec::client()
                     .encode(&message, &mut bytes)
-                    .expect("didn't expect MessageCodec::encode to return an error")
+                    .expect("didn't expect MessageCodec::encode to return an error");
             }
         });
 
@@ -378,6 +378,7 @@ mod tests {
     }
 
     #[quickcheck]
+    #[allow(clippy::needless_pass_by_value)]
     fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
         let header = assert_allocated_bytes(0, || {
             FrameHeader {

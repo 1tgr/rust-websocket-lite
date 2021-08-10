@@ -353,7 +353,7 @@ mod tests {
             let header2 = codec.decode(&mut bytes).unwrap().unwrap();
             assert_eq!(header2.header_len(), header_len);
             assert_eq!(bytes.len(), 0);
-            assert_eq!(header, header2)
-        })
+            assert_eq!(header, header2);
+        });
     }
 }

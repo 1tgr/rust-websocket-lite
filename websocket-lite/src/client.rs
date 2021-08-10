@@ -346,7 +346,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn can_connect_on() -> Result<()> {
         let mut input = Cursor::new(RESPONSE);
