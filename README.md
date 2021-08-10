@@ -16,7 +16,7 @@ This crate is optimised for receiving a high volume of messages over a long peri
 no memory allocations once the connection is set up and the initial messages have been sent and received; it reuses
 a single pair of buffers, which are sized for the longest message seen so far.
 
-This crate only works in [tokio](https://docs.rs/tokio) runtime contexts.
+This crate provides sync and async, [tokio](https://docs.rs/tokio)-based functionality.
 The `ssl-native-tls`, `ssl-rustls-native-roots` and `ssl-rustls-webpki-roots` feature flags provide the TLS functionality for `wss://...` servers.
 
 This crate is fully conformant with the fuzzingserver module in the
