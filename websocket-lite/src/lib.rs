@@ -20,7 +20,7 @@ mod ssl;
 mod sync;
 
 pub use crate::client::ClientBuilder;
-pub use crate::ssl::{Connector, MaybeTlsStream};
+pub use crate::ssl::{Connector, MaybeTlsStream, SyncMaybeTlsStream};
 
 pub use websocket_codec::{CloseCode, CloseFrame, Error, Message, MessageCodec, Opcode, Result};
 
