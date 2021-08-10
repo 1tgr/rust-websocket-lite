@@ -1,12 +1,10 @@
 // Based on example code from the rust-websocket project:
-// https://github.com/websockets-rs/rust-websocket/blob/0a12e501cba8bb81875c6c9690b57a76955b7beb/examples/async-autobahn-client.rs
+// https://github.com/websockets-rs/rust-websocket/blob/0a12e501cba8bb81875c6c9690b57a76955b7beb/examples/autobahn-client.rs
 //
 // This example code is copyright (c) 2014-2015 Cyderize
 
 use std::io::{self, Write};
 
-use futures_util::sink::SinkExt;
-use futures_util::StreamExt;
 use structopt::StructOpt;
 use url::Url;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
@@ -19,18 +17,14 @@ struct Opt {
     ws_url: Url,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let Opt { ws_url } = Opt::from_args();
     let agent = "rust-websocket-lite";
-
     println!("Using fuzzingserver {}", ws_url);
     println!("Using agent {}", agent);
-
-    let case_count = get_case_count(&ws_url).await?;
-    println!("We will be running {} test cases!", case_count);
-
     println!("Running test suite...");
+
+    let case_count = get_case_count(&ws_url)?;
     for case_id in 1..=case_count {
         let url = format!(
             "{ws_url}runCase?case={case_id}&agent={agent}",
@@ -39,8 +33,7 @@ async fn main() -> Result<()> {
             agent = agent
         );
 
-        let builder = ClientBuilder::new(&url)?;
-        let mut stream_mut = builder.connect_insecure().await?;
+        let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
 
         {
             let stdout = io::stdout();
@@ -49,57 +42,70 @@ async fn main() -> Result<()> {
             stdout.flush()?;
         }
 
-        loop {
-            let (msg, mut stream) = stream_mut.into_future().await;
+        while let Ok(Some(message)) = client.receive() {
+            match message.opcode() {
+                Opcode::Text | Opcode::Binary => client.send(message)?,
 
-            let msg = match msg {
-                Some(Ok(msg)) => msg,
-                Some(Err(_err)) => {
-                    let _ = stream.send(Message::close(None)).await;
+                Opcode::Close => {
+                    let _ = client.send(Message::close(None));
                     break;
                 }
-                None => {
-                    break;
-                }
-            };
 
-            match msg.opcode() {
-                Opcode::Text | Opcode::Binary => stream.send(msg).await?,
-                Opcode::Ping => stream.send(Message::pong(msg.into_data())).await?,
-                Opcode::Close => stream.send(Message::close(None)).await?,
-                Opcode::Pong => (),
+                Opcode::Ping => client.send(Message::pong(message.into_data()))?,
+
+                _ => (),
+            }
+        }
+    }
+
+    update_reports(&ws_url, agent)
+}
+
+fn get_case_count(ws_url: &Url) -> Result<usize> {
+    let url = format!("{ws_url}getCaseCount", ws_url = ws_url);
+    let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
+    let mut count = 0;
+
+    while let Some(message) = client.receive()? {
+        match message.opcode() {
+            Opcode::Text => {
+                count = message.as_text().unwrap().parse()?;
+                println!("Will run {} cases...", count);
             }
 
-            stream_mut = stream;
+            Opcode::Close => {
+                let _ = client.send(Message::close(None));
+                break;
+            }
+
+            Opcode::Ping => client.send(Message::pong(message.into_data()))?,
+
+            _ => (),
         }
     }
 
-    update_reports(&ws_url, agent).await?;
-    println!("Test suite finished!");
-    Ok(())
+    Ok(count)
 }
 
-async fn get_case_count(ws_url: &Url) -> Result<usize> {
-    let url = format!("{}getCaseCount", ws_url);
-    let builder = ClientBuilder::new(&url)?;
-    let s = builder.connect_insecure().await?;
-    let (msg, _s) = s.into_future().await;
-    if let Some(msg) = msg {
-        if let Some(text) = msg?.as_text() {
-            return Ok(text.parse()?);
-        }
-    }
-
-    Err("response not recognised".to_owned().into())
-}
-
-async fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
+fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
     let url = format!("{ws_url}updateReports?agent={agent}", ws_url = ws_url, agent = agent);
+    let mut client = ClientBuilder::new(&url)?.connect_insecure()?;
     println!("Updating reports...");
 
-    let builder = ClientBuilder::new(&url)?;
-    let mut sink = builder.connect_insecure().await?;
-    sink.send(Message::close(None)).await?;
+    while let Some(message) = client.receive()? {
+        match message.opcode() {
+            Opcode::Close => {
+                let _ = client.send(Message::close(None));
+                break;
+            }
+
+            Opcode::Ping => client.send(Message::pong(message.into_data()))?,
+
+            _ => (),
+        }
+    }
+
     println!("Reports updated.");
+    println!("Test suite finished!");
     Ok(())
 }

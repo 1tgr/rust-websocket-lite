@@ -30,7 +30,7 @@ struct Opt {
 #[tokio::main]
 async fn main() -> Result<()> {
     let Opt { eof_wait, ws_url } = Opt::from_args();
-    let client = ClientBuilder::from_url(ws_url).connect().await?;
+    let client = ClientBuilder::from_url(ws_url).async_connect().await?;
     let (sink, stream) = client.split();
 
     let send_loop = async {

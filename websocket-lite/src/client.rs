@@ -1,4 +1,5 @@
-use std::net::SocketAddr;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream as StdTcpStream};
 use std::{fmt, result, str};
 
 use futures_util::StreamExt;
@@ -8,8 +9,7 @@ use tokio_util::codec::{Decoder, Framed};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
-use crate::ssl::MaybeTlsStream;
-use crate::{ssl, Client, MessageCodec, Result};
+use crate::{ssl, sync, AsyncClient, Client, MessageCodec, Result};
 
 fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
 where
@@ -133,10 +133,10 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if connecting to the server fails.
-    pub async fn connect_insecure(self) -> Result<Client<TokioTcpStream>> {
+    pub async fn async_connect_insecure(self) -> Result<AsyncClient<TokioTcpStream>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
-        Ok(self.connect_on(stream).await?)
+        Ok(self.async_connect_on(stream).await?)
     }
 
     /// Establishes a connection to the WebSocket server.
@@ -144,14 +144,25 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if connecting to the server fails.
-    pub async fn connect(mut self) -> Result<Client<MaybeTlsStream<TokioTcpStream>>> {
+    pub fn connect_insecure(self) -> Result<Client<StdTcpStream>> {
+        let addr = resolve(&self.url)?;
+        let stream = StdTcpStream::connect(&addr)?;
+        self.connect_on(stream)
+    }
+
+    /// Establishes a connection to the WebSocket server.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if connecting to the server fails.
+    pub async fn async_connect(mut self) -> Result<AsyncClient<ssl::MaybeTlsStream<TokioTcpStream>>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
 
         let connector = if let Some(connector) = self.connector.take() {
             connector
         } else if self.url.scheme() == "wss" {
-            ssl::Connector::with_default_tls_config()?
+            ssl::Connector::new_async_with_default_tls_config()?
         } else {
             ssl::Connector::Plain
         };
@@ -159,7 +170,30 @@ impl ClientBuilder {
         let domain = self.url.domain().unwrap_or("");
         let stream = connector.wrap(domain, stream).await?;
 
-        self.connect_on(stream).await
+        self.async_connect_on(stream).await
+    }
+
+    /// Establishes a connection to the WebSocket server.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if connecting to the server fails.
+    pub fn connect(mut self) -> Result<Client<ssl::SyncMaybeTlsStream<StdTcpStream>>> {
+        let addr = resolve(&self.url)?;
+        let stream = StdTcpStream::connect(&addr)?;
+
+        let connector = if let Some(connector) = self.connector.take() {
+            connector
+        } else if self.url.scheme() == "wss" {
+            ssl::Connector::new_sync_with_default_tls_config()?
+        } else {
+            ssl::Connector::Plain
+        };
+
+        let domain = self.url.domain().unwrap_or("");
+        let stream = connector.wrap_sync(domain, stream)?;
+
+        self.connect_on(stream)
     }
 
     /// Takes over an already established stream and uses it to send and receive WebSocket messages.
@@ -170,7 +204,7 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// This method returns an `Err` result if writing or reading from the stream fails.
-    pub async fn connect_on<S: AsyncRead + AsyncWrite + Unpin>(self, mut stream: S) -> Result<Client<S>> {
+    pub async fn async_connect_on<S: AsyncRead + AsyncWrite + Unpin>(self, mut stream: S) -> Result<AsyncClient<S>> {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
         let upgrade_codec = UpgradeCodec::new(key);
@@ -180,6 +214,26 @@ impl ClientBuilder {
         let (opt, framed) = upgrade_codec.framed(stream).into_future().await;
         opt.ok_or_else(|| "no HTTP Upgrade response".to_owned())??;
         Ok(replace_codec(framed, MessageCodec::client()))
+    }
+
+    /// Takes over an already established stream and uses it to send and receive WebSocket messages.
+    ///
+    /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
+    /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if writing or reading from the stream fails.
+    pub fn connect_on<S: Read + Write>(self, mut stream: S) -> Result<Client<S>> {
+        let mut key_base64 = [0; 24];
+        let key = make_key(self.key, &mut key_base64);
+        let upgrade_codec = UpgradeCodec::new(key);
+        let request = build_request(&self.url, key, &self.headers);
+        Write::write_all(&mut stream, request.as_bytes())?;
+
+        let mut framed = sync::Framed::new(stream, upgrade_codec);
+        framed.receive()?.ok_or_else(|| "no HTTP Upgrade response".to_owned())?;
+        Ok(framed.replace_codec(MessageCodec::client()))
     }
 
     // Not pub - used by the tests
@@ -284,7 +338,7 @@ mod tests {
 
         ClientBuilder::new("ws://localhost:8000/stream?query")?
             .key(&base64::decode(b"dGhlIHNhbXBsZSBub25jZQ==")?)
-            .connect_on(ReadWritePair(&mut input, &mut output))
+            .async_connect_on(ReadWritePair(&mut input, &mut output))
             .await
             .unwrap();
 
