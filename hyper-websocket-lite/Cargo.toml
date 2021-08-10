@@ -16,4 +16,4 @@ tokio-util = { version = "0.6", default-features = false, features=["codec"] }
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 hyper = { version = "0.14", features=["http1", "server", "tcp"] }
-tokio = { version = "1", default-features = false, features = ["macros"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread"] }
