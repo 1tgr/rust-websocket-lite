@@ -14,7 +14,7 @@ futures = "0.3"
 native-tls = { version = "0.2", optional = true }
 openssl = { version = "0.10", optional = true }
 rand = "0.8"
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 tokio-openssl = { version = "0.6", optional = true }
 tokio-native-tls = { version = "0.3", optional = true }
 tokio = { version = "1", features = ["net", "io-util"] }
