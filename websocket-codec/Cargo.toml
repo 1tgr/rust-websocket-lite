@@ -14,7 +14,7 @@ bytes = "1"
 httparse = "1"
 rand = "0.8"
 sha1 = "0.6"
-tokio-util = { version="0.6", features=["codec"] }
+tokio-util = { version="0.7", features=["codec"] }
 
 [dev-dependencies]
 assert-allocations = { path="../assert-allocations" }
