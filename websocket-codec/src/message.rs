@@ -165,7 +165,7 @@ impl Decoder for MessageCodec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Message>> {
         let mut state = self.interrupted_message.take();
         let (opcode, data) = loop {
-            let (header, header_len) = if let Some(tuple) = FrameHeader::parse_slice(&src) {
+            let (header, header_len) = if let Some(tuple) = FrameHeader::parse_slice(src) {
                 tuple
             } else {
                 // The buffer isn't big enough for the frame header. Reserve additional space for a frame header,

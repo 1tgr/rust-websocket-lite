@@ -128,7 +128,7 @@ impl ClientBuilder {
     pub async fn async_connect_insecure(self) -> Result<AsyncClient<TokioTcpStream>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
-        Ok(self.async_connect_on(stream).await?)
+        self.async_connect_on(stream).await
     }
 
     /// Establishes a connection to the WebSocket server.
