@@ -154,7 +154,7 @@ impl Decoder for UpgradeCodec {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<()>> {
-        if let Some(response_len) = validate_server_response(&self.ws_accept, &src)? {
+        if let Some(response_len) = validate_server_response(&self.ws_accept, src)? {
             src.advance(response_len);
             Ok(Some(()))
         } else {
