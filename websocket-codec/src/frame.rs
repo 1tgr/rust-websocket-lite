@@ -264,16 +264,15 @@ impl FrameHeader {
             DataLength::Large(n) => n as usize,
         };
 
+        let initial_len = dst.len();
         let header_len = self.header_len();
         dst.reserve(header_len + data_len);
 
-        if header_len > dst.len() {
-            unsafe {
-                dst.set_len(header_len);
-            }
+        unsafe {
+            dst.set_len(initial_len + header_len);
         }
 
-        let dst_slice = &mut dst[0..header_len];
+        let dst_slice = &mut dst[initial_len..(initial_len + header_len)];
         self.write_to_slice(dst_slice);
     }
 }
