@@ -472,7 +472,7 @@ mod tests {
     fn roundtrips_multiple_messages() {
         // According to https://docs.rs/tokio-util/0.7.3/tokio_util/codec/index.html#the-encoder-trait
         // the buffer given to the Encoder may already contain data.
-        // Therefore, we check whether writing two messages into the same buffer roundtrips correctly.        
+        // Therefore, we check whether writing two messages into the same buffer roundtrips correctly.
         let mut buf = BytesMut::new();
         let mut codec = MessageCodec::server();
         codec.encode(Message::text("A"), &mut buf).unwrap();
