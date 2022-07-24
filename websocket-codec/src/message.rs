@@ -467,4 +467,17 @@ mod tests {
             "frame is too long: 18446744069414584575 bytes (ffffffff000000ff)"
         );
     }
+
+    #[test]
+    fn roundtrips_multiple_messages() {
+        // According to https://docs.rs/tokio-util/0.7.3/tokio_util/codec/index.html#the-encoder-trait
+        // the buffer given to the Encoder may already contain data.
+        // Therefore, we check whether writing two messages into the same buffer roundtrips correctly.
+        let mut buf = BytesMut::new();
+        let mut codec = MessageCodec::server();
+        codec.encode(Message::text("A"), &mut buf).unwrap();
+        codec.encode(Message::text("B"), &mut buf).unwrap();
+        assert_eq!(codec.decode(&mut buf).unwrap().unwrap(), Message::text("A"));
+        assert_eq!(codec.decode(&mut buf).unwrap().unwrap(), Message::text("B"));
+    }
 }
