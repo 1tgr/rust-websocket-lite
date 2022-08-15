@@ -131,6 +131,7 @@ impl Message {
 #[derive(Clone)]
 pub struct MessageCodec {
     interrupted_message: Option<(Opcode, BytesMut)>,
+    size_limit: Option<usize>,
     use_mask: bool,
 }
 
@@ -154,6 +155,16 @@ impl MessageCodec {
         Self {
             use_mask,
             interrupted_message: None,
+            size_limit: None,
+        }
+    }
+
+    /// Create a `MessageCodec` for a server, with a specified size limit to prevent DoS attacks
+    pub fn server_with_message_size_limit(limit: usize) -> Self {
+        Self {
+            use_mask: false,
+            interrupted_message: None,
+            size_limit: Some(limit),
         }
     }
 }
@@ -188,6 +199,8 @@ impl Decoder for MessageCodec {
                 // max payload length detailed in the RFC of 2^63 bytes.
                 if frame_len > usize::MAX - src.remaining() {
                     return Err(format!("frame is too long: {0} bytes ({0:x})", frame_len).into());
+                }else if frame_len > self.size_limit.unwrap_or(usize::MAX) {
+                    return Err(format!("frame exceeds size limit: {0} bytes ({0:x})", frame_len).into());
                 }
 
                 // We don't really reserve space for the entire frame data in a single call. If somebody is sending
@@ -245,6 +258,9 @@ impl Decoder for MessageCodec {
 
                     return Err(format!("continuation frame must have continuation opcode, not {:?}", opcode).into());
                 } else {
+                    if partial_data.len() + data.len() > self.size_limit.unwrap_or(usize::MAX) {
+                        return Err(format!("Message exceeds size limit: {0} bytes ({0:x})", partial_data.len() + data.len()).into());
+                    }
                     partial_data.extend_from_slice(&data);
 
                     if fin {
