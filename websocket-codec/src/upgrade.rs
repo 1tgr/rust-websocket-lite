@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::result;
 use std::str;
 
@@ -38,7 +39,13 @@ fn validate_server_response(expected_ws_accept: &Sha1Digest, data: &[u8]) -> Res
     let response_len = status.unwrap();
     let code = response.code.unwrap();
     if code != 101 {
-        return Err(format!("server responded with HTTP error {code}", code = code).into());
+        let mut error_message = format!("server responded with HTTP error {code}", code = code);
+
+        if let Some(reason) = response.reason {
+            write!(error_message, ": {:?}", reason).expect("formatting reason failed");
+        }
+
+        return Err(error_message.into());
     }
 
     let ws_accept_header = header(response.headers, "Sec-WebSocket-Accept")?;
