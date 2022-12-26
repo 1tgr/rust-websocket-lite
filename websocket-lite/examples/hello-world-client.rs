@@ -7,7 +7,8 @@ use futures_util::sink::SinkExt;
 use futures_util::stream::StreamExt;
 use websocket_lite::{Message, Opcode, Result};
 
-async fn run() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let url = env::args().nth(1).unwrap_or_else(|| "ws://localhost:9001".to_owned());
     let builder = websocket_lite::ClientBuilder::new(&url)?;
     let mut ws_stream = builder.async_connect().await?;
@@ -44,15 +45,4 @@ async fn run() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[tokio::main]
-async fn main() {
-    tokio::spawn(async {
-        run().await.unwrap_or_else(|e| {
-            eprintln!("{}", e);
-        })
-    })
-    .await
-    .unwrap();
 }
