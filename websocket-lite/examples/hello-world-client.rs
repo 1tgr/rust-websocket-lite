@@ -24,7 +24,7 @@ async fn run() -> Result<()> {
         let msg = if let Ok(msg) = msg {
             msg
         } else {
-            let _ = ws_stream.send(Message::close(None)).await;
+            let _ = ws_stream.send(Message::close()).await;
             break;
         };
 
@@ -36,7 +36,7 @@ async fn run() -> Result<()> {
             Opcode::Binary => ws_stream.send(msg).await?,
             Opcode::Ping => ws_stream.send(Message::pong(msg.into_data())).await?,
             Opcode::Close => {
-                let _ = ws_stream.send(Message::close(None)).await;
+                let _ = ws_stream.send(Message::close()).await;
                 break;
             }
             Opcode::Pong => {}

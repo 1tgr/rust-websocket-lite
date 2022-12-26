@@ -14,6 +14,7 @@ extern crate quickcheck_macros;
 #[cfg(all(feature = "nightly", test))]
 extern crate test;
 
+mod close;
 mod frame;
 mod mask;
 mod message;
@@ -22,6 +23,7 @@ mod upgrade;
 
 pub mod protocol;
 
+pub use crate::close::{CloseCode, CloseFrame};
 pub use crate::message::{Message, MessageCodec};
 pub use crate::opcode::Opcode;
 pub use crate::upgrade::{ClientRequest, UpgradeCodec};

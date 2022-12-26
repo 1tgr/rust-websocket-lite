@@ -50,7 +50,7 @@ fn main() -> Result<()> {
                 Opcode::Text | Opcode::Binary => client.send(message)?,
 
                 Opcode::Close => {
-                    let _ = client.send(Message::close(None));
+                    let _ = client.send(Message::close());
                     break;
                 }
 
@@ -77,7 +77,7 @@ fn get_case_count(ws_url: &Url) -> Result<usize> {
             }
 
             Opcode::Close => {
-                let _ = client.send(Message::close(None));
+                let _ = client.send(Message::close());
                 break;
             }
 
@@ -98,7 +98,7 @@ fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
     while let Some(message) = client.receive()? {
         match message.opcode() {
             Opcode::Close => {
-                let _ = client.send(Message::close(None));
+                let _ = client.send(Message::close());
                 break;
             }
 

@@ -21,7 +21,7 @@ mod sync;
 
 pub use crate::client::ClientBuilder;
 
-pub use websocket_codec::{Error, Message, MessageCodec, Opcode, Result};
+pub use websocket_codec::{CloseCode, CloseFrame, Error, Message, MessageCodec, Opcode, Result};
 
 use std::io::{Read, Write};
 

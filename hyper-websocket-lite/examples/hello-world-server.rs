@@ -11,7 +11,7 @@ use websocket_codec::{Message, Result};
 
 async fn on_client(mut client: AsyncClient) {
     let _ = client.send(Message::text("Hello, world!")).await;
-    let _ = client.send(Message::close(None)).await;
+    let _ = client.send(Message::close()).await;
 }
 
 #[tokio::main]

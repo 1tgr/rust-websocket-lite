@@ -14,7 +14,7 @@ async fn on_client(mut stream_mut: AsyncClient) {
         let msg = match msg {
             Some(Ok(msg)) => msg,
             Some(Err(_err)) => {
-                let _ = stream.send(Message::close(None)).await;
+                let _ = stream.send(Message::close()).await;
                 break stream;
             }
             None => {
@@ -34,7 +34,7 @@ async fn on_client(mut stream_mut: AsyncClient) {
         stream_mut = stream;
     };
 
-    let _ = stream.send(Message::close(None)).await;
+    let _ = stream.send(Message::close()).await;
 }
 
 #[tokio::main]
