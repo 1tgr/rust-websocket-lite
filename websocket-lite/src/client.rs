@@ -13,9 +13,8 @@ use tokio_util::codec::{Decoder, Framed};
 use url::{self, Url};
 use websocket_codec::UpgradeCodec;
 
-use crate::ssl;
 use crate::sync;
-use crate::{AsyncClient, AsyncNetworkStream, Client, MessageCodec, NetworkStream, Result};
+use crate::{AsyncClient, Client, MessageCodec, Result};
 
 fn replace_codec<T, C1, C2>(framed: Framed<T, C1>, codec: C2) -> Framed<T, C2>
 where
@@ -142,15 +141,16 @@ impl ClientBuilder {
     }
 
     /// Establishes a connection to the WebSocket server.
+    #[cfg(any(feature = "ssl-native-tls", feature = "ssl-openssl"))]
     pub async fn async_connect(
         self,
-    ) -> Result<AsyncClient<Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static>>> {
+    ) -> Result<AsyncClient<Box<dyn crate::AsyncNetworkStream + Sync + Send + Unpin + 'static>>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
 
-        let stream: Box<dyn AsyncNetworkStream + Sync + Send + Unpin + 'static> = if self.url.scheme() == "wss" {
+        let stream: Box<dyn crate::AsyncNetworkStream + Sync + Send + Unpin + 'static> = if self.url.scheme() == "wss" {
             let domain = self.url.domain().unwrap_or("").to_owned();
-            let stream = ssl::async_wrap(domain, stream).await?;
+            let stream = crate::ssl::async_wrap(domain, stream).await?;
             Box::new(stream)
         } else {
             Box::new(stream)
@@ -160,13 +160,14 @@ impl ClientBuilder {
     }
 
     /// Establishes a connection to the WebSocket server.
-    pub fn connect(self) -> Result<Client<Box<dyn NetworkStream + Sync + Send + 'static>>> {
+    #[cfg(any(feature = "ssl-native-tls", feature = "ssl-openssl"))]
+    pub fn connect(self) -> Result<Client<Box<dyn crate::NetworkStream + Sync + Send + 'static>>> {
         let addr = resolve(&self.url)?;
         let stream = StdTcpStream::connect(&addr)?;
 
-        let stream: Box<dyn NetworkStream + Sync + Send + 'static> = if self.url.scheme() == "wss" {
+        let stream: Box<dyn crate::NetworkStream + Sync + Send + 'static> = if self.url.scheme() == "wss" {
             let domain = self.url.domain().unwrap_or("");
-            let stream = ssl::wrap(domain, stream)?;
+            let stream = crate::ssl::wrap(domain, stream)?;
             Box::new(stream)
         } else {
             Box::new(stream)
