@@ -19,9 +19,13 @@ pub struct Message {
 }
 
 impl Message {
-    /// Creates a message from a `Bytes` object.
+    /// Creates a message from a [`Bytes`] object.
     ///
-    /// The message can be tagged as text or binary. When the `opcode` parameter is [`Opcode::Text`](enum.Opcode.html)
+    /// The message can be tagged as text or binary.
+    ///
+    /// # Errors
+    ///
+    /// When the `opcode` parameter is [`Opcode::Text`]
     /// this function validates the bytes in `data` and returns `Err` if they do not contain valid UTF-8 text.
     pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
         let data = data.into();
@@ -41,7 +45,7 @@ impl Message {
         }
     }
 
-    /// Creates a binary message from any type that can be converted to `Bytes`, such as `&[u8]` or `Vec<u8>`.
+    /// Creates a binary message from any type that can be converted to [`Bytes`], such as `&[u8]` or `Vec<u8>`.
     pub fn binary<B: Into<Bytes>>(data: B) -> Self {
         Message {
             opcode: Opcode::Binary,
@@ -63,6 +67,7 @@ impl Message {
     ///
     /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
     /// may be defined by a particular WebSocket server.
+    #[must_use]
     pub fn close(reason: Option<(u16, String)>) -> Self {
         let data = if let Some((code, reason)) = reason {
             let reason: Bytes = reason.into();
@@ -116,7 +121,7 @@ impl Message {
         self.data
     }
 
-    /// For messages with opcode [`Opcode::Text`](enum.Opcode.html), returns a reference to the text.
+    /// For messages with opcode [`Opcode::Text`], returns a reference to the text.
     /// Returns `None` otherwise.
     pub fn as_text(&self) -> Option<&str> {
         if self.opcode.is_text() {
@@ -127,7 +132,7 @@ impl Message {
     }
 }
 
-/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
+/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`] structs.
 #[derive(Clone)]
 pub struct MessageCodec {
     interrupted_message: Option<(Opcode, BytesMut)>,
@@ -138,6 +143,7 @@ impl MessageCodec {
     /// Creates a `MessageCodec` for a client.
     ///
     /// Encoded messages are masked.
+    #[must_use]
     pub fn client() -> Self {
         Self::with_masked_encode(true)
     }
@@ -145,11 +151,13 @@ impl MessageCodec {
     /// Creates a `MessageCodec` for a server.
     ///
     /// Encoded messages are not masked.
+    #[must_use]
     pub fn server() -> Self {
         Self::with_masked_encode(false)
     }
 
     /// Creates a `MessageCodec` while specifying whether to use message masking while encoding.
+    #[must_use]
     pub fn with_masked_encode(use_mask: bool) -> Self {
         Self {
             use_mask,
@@ -218,7 +226,7 @@ impl Decoder for MessageCodec {
             if let Some(mask) = mask {
                 // Note: clients never need decode masked messages because masking is only used for client -> server frames.
                 // However this code is used to test round tripping of masked messages.
-                mask::mask_slice(&mut data, mask)
+                mask::mask_slice(&mut data, mask);
             };
 
             let opcode = if opcode == 0 {
@@ -244,15 +252,15 @@ impl Decoder for MessageCodec {
                     }
 
                     return Err(format!("continuation frame must have continuation opcode, not {:?}", opcode).into());
-                } else {
-                    partial_data.extend_from_slice(&data);
-
-                    if fin {
-                        break (partial_opcode, partial_data);
-                    }
-
-                    Some((partial_opcode, partial_data))
                 }
+
+                partial_data.extend_from_slice(&data);
+
+                if fin {
+                    break (partial_opcode, partial_data);
+                }
+
+                Some((partial_opcode, partial_data))
             } else if let Some(opcode) = opcode {
                 if fin {
                     break (opcode, data);
@@ -336,7 +344,7 @@ mod tests {
             || {
                 MessageCodec::client()
                     .encode(&message, &mut bytes)
-                    .expect("didn't expect MessageCodec::encode to return an error")
+                    .expect("didn't expect MessageCodec::encode to return an error");
             }
         });
 
@@ -355,13 +363,14 @@ mod tests {
     }
 
     #[quickcheck]
+    #[allow(clippy::needless_pass_by_value)] // clippy wants &str, but quickcheck can only give us String
     fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
         let header = assert_allocated_bytes(0, || {
             FrameHeader {
                 fin: true, // TODO test messages split across frames
                 rsv: 0,
                 opcode: if is_text { 1 } else { 2 },
-                mask: mask.map(|n| n.into()),
+                mask: mask.map(Into::into),
                 data_len: data.len().into(),
             }
         });

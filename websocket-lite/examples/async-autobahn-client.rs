@@ -2,6 +2,8 @@
 // https://github.com/websockets-rs/rust-websocket/blob/0a12e501cba8bb81875c6c9690b57a76955b7beb/examples/async-autobahn-client.rs
 //
 // This example code is copyright (c) 2014-2015 Cyderize
+#![warn(clippy::pedantic)]
+#![allow(clippy::let_underscore_drop)]
 
 use std::io::{self, Write};
 

@@ -1,3 +1,6 @@
+#![warn(clippy::pedantic)]
+#![allow(clippy::let_underscore_drop)]
+
 use std::env;
 
 use futures_util::sink::SinkExt;
@@ -28,7 +31,7 @@ async fn run() -> Result<()> {
         match msg.opcode() {
             Opcode::Text => {
                 println!("{}", msg.as_text().unwrap());
-                ws_stream.send(msg).await?
+                ws_stream.send(msg).await?;
             }
             Opcode::Binary => ws_stream.send(msg).await?,
             Opcode::Ping => ws_stream.send(Message::pong(msg.into_data())).await?,

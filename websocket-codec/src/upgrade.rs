@@ -86,6 +86,10 @@ pub struct ClientRequest {
 
 impl ClientRequest {
     /// Parses the client's opening handshake.
+    ///
+    /// # Errors
+    ///
+    /// This method fails when a header required for the WebSocket protocol is missing in the handshake.
     pub fn parse<'a, F>(header: F) -> Result<Self>
     where
         F: Fn(&'static str) -> Option<&'a str> + 'a,
@@ -131,10 +135,11 @@ impl ClientRequest {
 
     /// Copies the value that the client expects to see in the server's `Sec-WebSocket-Accept` header into a `String`.
     pub fn ws_accept_buf(&self, s: &mut String) {
-        base64::encode_config_buf(&self.ws_accept, base64::STANDARD, s)
+        base64::encode_config_buf(&self.ws_accept, base64::STANDARD, s);
     }
 
     /// Returns the value that the client expects to see in the server's `Sec-WebSocket-Accept` header.
+    #[must_use]
     pub fn ws_accept(&self) -> String {
         base64::encode_config(&self.ws_accept, base64::STANDARD)
     }
@@ -149,6 +154,7 @@ impl UpgradeCodec {
     /// Returns a new `UpgradeCodec` object.
     ///
     /// The `key` parameter provides the string passed to the server via the HTTP `Sec-WebSocket-Key` header.
+    #[must_use]
     pub fn new(key: &str) -> Self {
         UpgradeCodec {
             ws_accept: build_ws_accept(key),

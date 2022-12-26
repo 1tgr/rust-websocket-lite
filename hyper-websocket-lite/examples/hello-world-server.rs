@@ -1,4 +1,5 @@
-#![deny(rust_2018_idioms)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::let_underscore_drop)]
 
 use std::env;
 

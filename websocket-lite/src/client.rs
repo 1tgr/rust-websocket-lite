@@ -98,6 +98,8 @@ pub struct ClientBuilder {
 impl ClientBuilder {
     /// Creates a `ClientBuilder` that connects to a given WebSocket URL.
     ///
+    /// # Errors
+    ///
     /// This method returns an `Err` result if URL parsing fails.
     pub fn new(url: &str) -> result::Result<Self, url::ParseError> {
         Ok(Self::from_url(Url::parse(url)?))
@@ -106,6 +108,7 @@ impl ClientBuilder {
     /// Creates a `ClientBuilder` that connects to a given WebSocket URL.
     ///
     /// This method never fails as the URL has already been parsed.
+    #[must_use]
     pub fn from_url(url: Url) -> Self {
         ClientBuilder {
             url,
@@ -124,6 +127,10 @@ impl ClientBuilder {
     ///
     /// `wss://...` URLs are not supported by this method. Use `async_connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if connecting to the server fails.
     pub async fn async_connect_insecure(self) -> Result<AsyncClient<TokioTcpStream>> {
         let addr = resolve(&self.url)?;
         let stream = TokioTcpStream::connect(&addr).await?;
@@ -134,6 +141,10 @@ impl ClientBuilder {
     ///
     /// `wss://...` URLs are not supported by this method. Use `connect` if you need to be able to handle
     /// both `ws://...` and `wss://...` URLs.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if connecting to the server fails.
     pub fn connect_insecure(self) -> Result<Client<StdTcpStream>> {
         let addr = resolve(&self.url)?;
         let stream = StdTcpStream::connect(&addr)?;
@@ -141,6 +152,10 @@ impl ClientBuilder {
     }
 
     /// Establishes a connection to the WebSocket server.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if connecting to the server fails.
     #[cfg(any(feature = "ssl-native-tls", feature = "ssl-openssl"))]
     pub async fn async_connect(
         self,
@@ -160,6 +175,10 @@ impl ClientBuilder {
     }
 
     /// Establishes a connection to the WebSocket server.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if connecting to the server fails.
     #[cfg(any(feature = "ssl-native-tls", feature = "ssl-openssl"))]
     pub fn connect(self) -> Result<Client<Box<dyn crate::NetworkStream + Sync + Send + 'static>>> {
         let addr = resolve(&self.url)?;
@@ -180,6 +199,10 @@ impl ClientBuilder {
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if writing or reading from the stream fails.
     pub async fn async_connect_on<S: AsyncRead + AsyncWrite + Unpin>(self, mut stream: S) -> Result<AsyncClient<S>> {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
@@ -196,6 +219,10 @@ impl ClientBuilder {
     ///
     /// This method assumes that the TLS connection has already been established, if needed. It sends an HTTP
     /// `Connection: Upgrade` request and waits for an HTTP OK response before proceeding.
+    ///
+    /// # Errors
+    ///
+    /// This method returns an `Err` result if writing or reading from the stream fails.
     pub fn connect_on<S: Read + Write>(self, mut stream: S) -> Result<Client<S>> {
         let mut key_base64 = [0; 24];
         let key = make_key(self.key, &mut key_base64);
