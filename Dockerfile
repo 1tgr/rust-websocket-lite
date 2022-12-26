@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20220531 as deps
+FROM ubuntu:jammy-20221130 as deps
 
 RUN apt-get -y update && apt-get -y install \
     clang \
@@ -63,23 +63,18 @@ FROM build as fuzz
 RUN mv rust-nightly-toolchain rust-toolchain
 RUN cargo fuzz build
 
-FROM ubuntu:bionic-20220531 as app
+FROM ubuntu:jammy-20221130 as app
 
 RUN apt-get -y update && apt-get -y install \
     ca-certificates \
     netcat \
     openssl \
-    python-pip \
-    python2.7 \
     python3-pip
 
-RUN pip2 install \
-    autobahntestsuite
-
-RUN pip3 install \
-    websockets
-
 WORKDIR /app
+
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt
 
 COPY --from=build \
     /build/target/release/examples/async-autobahn-client \
