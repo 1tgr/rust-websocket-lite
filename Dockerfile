@@ -74,6 +74,7 @@ RUN apt-get -y update && apt-get -y install \
     python3-pip
 
 RUN pip2 install \
+    wsaccel==0.6.3 \
     autobahntestsuite
 
 RUN pip3 install \
