@@ -1,6 +1,6 @@
 #![deny(rust_2018_idioms)]
 
-use futures::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use hyper_websocket_lite::{server_upgrade, AsyncClient};

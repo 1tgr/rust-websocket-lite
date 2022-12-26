@@ -43,7 +43,7 @@ mod inner {
     use std::io::{Read, Write};
     use std::sync::Mutex;
 
-    use futures::{Future, IntoFuture};
+    use futures_util::{Future, IntoFuture};
     use openssl::ssl::{SslConnector, SslConnectorBuilder, SslMethod};
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio_openssl::SslConnectorExt;

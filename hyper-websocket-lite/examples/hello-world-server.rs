@@ -2,7 +2,7 @@
 
 use std::env;
 
-use futures::SinkExt;
+use futures_util::SinkExt;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use hyper_websocket_lite::{server_upgrade, AsyncClient};
