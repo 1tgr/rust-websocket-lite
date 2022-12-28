@@ -1,6 +1,7 @@
-#![deny(rust_2018_idioms)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::let_underscore_drop)]
 
-use futures::{SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use hyper_websocket_lite::{server_upgrade, AsyncClient};
@@ -13,7 +14,7 @@ async fn on_client(mut stream_mut: AsyncClient) {
         let msg = match msg {
             Some(Ok(msg)) => msg,
             Some(Err(_err)) => {
-                let _ = stream.send(Message::close(None)).await;
+                let _ = stream.send(Message::close()).await;
                 break stream;
             }
             None => {
@@ -33,7 +34,7 @@ async fn on_client(mut stream_mut: AsyncClient) {
         stream_mut = stream;
     };
 
-    let _ = stream.send(Message::close(None)).await;
+    let _ = stream.send(Message::close()).await;
 }
 
 #[tokio::main]

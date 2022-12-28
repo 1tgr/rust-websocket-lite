@@ -2,11 +2,14 @@
 // https://github.com/websockets-rs/rust-websocket/blob/0a12e501cba8bb81875c6c9690b57a76955b7beb/examples/async-autobahn-client.rs
 //
 // This example code is copyright (c) 2014-2015 Cyderize
+#![warn(clippy::pedantic)]
+#![allow(clippy::let_underscore_drop)]
 
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 
-use futures::sink::SinkExt;
-use futures::stream::StreamExt;
+use futures_util::sink::SinkExt;
+use futures_util::stream::StreamExt;
 use structopt::StructOpt;
 use url::Url;
 use websocket_lite::{ClientBuilder, Message, Opcode, Result};
@@ -55,7 +58,7 @@ async fn main() -> Result<()> {
             let msg = match msg {
                 Some(Ok(msg)) => msg,
                 Some(Err(_err)) => {
-                    let _ = stream.send(Message::close(None)).await;
+                    let _ = stream.send(Message::close()).await;
                     break;
                 }
                 None => {
@@ -66,7 +69,7 @@ async fn main() -> Result<()> {
             match msg.opcode() {
                 Opcode::Text | Opcode::Binary => stream.send(msg).await?,
                 Opcode::Ping => stream.send(Message::pong(msg.into_data())).await?,
-                Opcode::Close => stream.send(Message::close(None)).await?,
+                Opcode::Close => stream.send(Message::close()).await?,
                 Opcode::Pong => (),
             }
 
@@ -99,7 +102,7 @@ async fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
 
     let builder = ClientBuilder::new(&url)?;
     let mut sink = builder.async_connect_insecure().await?;
-    sink.send(Message::close(None)).await?;
+    sink.send(Message::close()).await?;
     println!("Reports updated.");
     Ok(())
 }

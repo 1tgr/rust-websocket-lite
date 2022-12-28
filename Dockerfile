@@ -47,11 +47,12 @@ RUN \
     echo "fn main() {}" > websocket-codec/examples/wsinspect.rs && \
     echo "fn main() {}" > websocket-lite/examples/async-autobahn-client.rs && \
     echo "fn main() {}" > websocket-lite/examples/autobahn-client.rs && \
+    echo "fn main() {}" > websocket-lite/examples/discord.rs && \
     echo "fn main() {}" > websocket-lite/examples/hello-world-client.rs && \
     echo "fn main() {}" > websocket-lite/examples/wsdump.rs
 
 ENV RUSTFLAGS=-Dwarnings
-RUN cargo build --release --workspace --exclude fuzz --all-targets
+RUN cargo build --workspace --exclude fuzz --all-targets --all-features
 
 COPY . .
 RUN find . -name "*.rs" | grep -v "^\./target" | xargs touch

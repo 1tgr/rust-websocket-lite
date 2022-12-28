@@ -1,5 +1,6 @@
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
-#![warn(rust_2018_idioms)]
+#![allow(clippy::module_name_repetitions)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 //! A Tokio codec implementation of the WebSocket protocol.
@@ -13,6 +14,7 @@ extern crate quickcheck_macros;
 #[cfg(all(feature = "nightly", test))]
 extern crate test;
 
+mod close;
 mod frame;
 mod mask;
 mod message;
@@ -21,12 +23,12 @@ mod upgrade;
 
 pub mod protocol;
 
+pub use crate::close::{CloseCode, CloseFrame};
 pub use crate::message::{Message, MessageCodec};
 pub use crate::opcode::Opcode;
 pub use crate::upgrade::{ClientRequest, UpgradeCodec};
 
-use std::error;
-use std::result;
+use std::{error, result};
 
 /// Represents errors that can be exposed by this crate.
 pub type Error = Box<dyn error::Error + Send + Sync + 'static>;

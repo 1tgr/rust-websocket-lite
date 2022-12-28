@@ -1,4 +1,5 @@
-#![deny(rust_2018_idioms)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::missing_panics_doc)]
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::RefCell;
@@ -26,7 +27,7 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for ThreadStatsAlloc<A> {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.inner.dealloc(ptr, layout)
+        self.inner.dealloc(ptr, layout);
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
@@ -64,7 +65,7 @@ mod tests {
         let mut v: Vec<u8> = Vec::new();
         assert_allocated_bytes(10, || {
             v.reserve(10);
-        })
+        });
     }
 
     #[test]
@@ -90,6 +91,6 @@ mod tests {
 
         assert_allocated_bytes(0, || {
             mem::drop(v);
-        })
+        });
     }
 }

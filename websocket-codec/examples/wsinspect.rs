@@ -1,8 +1,9 @@
+#![warn(clippy::pedantic)]
+
 use std::fs::File;
-use std::i64;
-use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::result;
+use std::{i64, io, result};
 
 use bytes::{Buf, BytesMut};
 use structopt::StructOpt;
@@ -31,6 +32,7 @@ fn decode_stream<S: BufRead, C: Decoder>(codec: &mut C, mut stream: S) -> result
     }
 }
 
+#[allow(clippy::cast_possible_wrap)]
 fn seek_forward<S: Seek>(mut stream: S, bytes: u64) -> result::Result<u64, io::Error> {
     let delta = bytes as i64;
 
@@ -49,10 +51,7 @@ fn seek_forward<S: Seek>(mut stream: S, bytes: u64) -> result::Result<u64, io::E
 
 fn display(header: &FrameHeader) -> String {
     let opcode = header.opcode();
-
-    let opcode = Opcode::try_from(opcode)
-        .map(|opcode| format!("{:?}", opcode))
-        .unwrap_or_else(|| opcode.to_string());
+    let opcode = Opcode::try_from(opcode).map_or_else(|| opcode.to_string(), |opcode| format!("{:?}", opcode));
 
     let mask = header
         .mask()
@@ -79,10 +78,10 @@ fn inspect(path: &Path, dump_header: bool, dump_data: bool) -> Result<()> {
             println!("{}: {}", path.to_string_lossy(), display(&header));
         }
 
-        let data_len = match header.data_len() {
-            DataLength::Small(n) => n as u64,
-            DataLength::Medium(n) => n as u64,
-            DataLength::Large(n) => n as u64,
+        let data_len: u64 = match header.data_len() {
+            DataLength::Small(n) => n.into(),
+            DataLength::Medium(n) => n.into(),
+            DataLength::Large(n) => n,
         };
 
         let actual_data_len = if dump_data {

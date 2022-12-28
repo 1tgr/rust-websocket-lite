@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 use bytes::BytesMut;
 use criterion::measurement::Measurement;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkGroup, Criterion};
@@ -28,7 +30,7 @@ where
                 src.split() // eagerly promote the BytesMut to KIND_ARC so we don't allocate below
             },
             |mut src| codec.decode(black_box(&mut src)),
-        )
+        );
     });
 }
 
@@ -63,7 +65,7 @@ where
                 dst
             },
             |mut dst| codec.encode(black_box(&item), black_box(&mut dst)),
-        )
+        );
     });
 }
 

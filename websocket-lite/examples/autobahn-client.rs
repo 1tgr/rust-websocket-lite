@@ -2,8 +2,11 @@
 // https://github.com/websockets-rs/rust-websocket/blob/0a12e501cba8bb81875c6c9690b57a76955b7beb/examples/autobahn-client.rs
 //
 // This example code is copyright (c) 2014-2015 Cyderize
+#![warn(clippy::pedantic)]
+#![allow(clippy::let_underscore_drop)]
 
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 
 use structopt::StructOpt;
 use url::Url;
@@ -47,13 +50,13 @@ fn main() -> Result<()> {
                 Opcode::Text | Opcode::Binary => client.send(message)?,
 
                 Opcode::Close => {
-                    let _ = client.send(Message::close(None));
+                    let _ = client.send(Message::close());
                     break;
                 }
 
                 Opcode::Ping => client.send(Message::pong(message.into_data()))?,
 
-                _ => (),
+                Opcode::Pong => (),
             }
         }
     }
@@ -74,7 +77,7 @@ fn get_case_count(ws_url: &Url) -> Result<usize> {
             }
 
             Opcode::Close => {
-                let _ = client.send(Message::close(None));
+                let _ = client.send(Message::close());
                 break;
             }
 
@@ -95,7 +98,7 @@ fn update_reports(ws_url: &Url, agent: &str) -> Result<()> {
     while let Some(message) = client.receive()? {
         match message.opcode() {
             Opcode::Close => {
-                let _ = client.send(Message::close(None));
+                let _ = client.send(Message::close());
                 break;
             }
 

@@ -1,15 +1,14 @@
 use std::convert::TryFrom;
-use std::result;
-use std::str::{self, Utf8Error};
-use std::usize;
+use std::{str, usize};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio_util::codec::{Decoder, Encoder};
 
+use crate::close::{CloseCode, CloseFrame};
 use crate::frame::FrameHeader;
-use crate::mask::{self, Mask};
+use crate::mask::Mask;
 use crate::opcode::Opcode;
-use crate::{Error, Result};
+use crate::{mask, Error, Result};
 
 /// A text string, a block of binary data or a WebSocket control frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -19,15 +18,33 @@ pub struct Message {
 }
 
 impl Message {
-    /// Creates a message from a `Bytes` object.
+    /// Creates a message from a [`Bytes`] object.
     ///
-    /// The message can be tagged as text or binary. When the `opcode` parameter is [`Opcode::Text`](enum.Opcode.html)
-    /// this function validates the bytes in `data` and returns `Err` if they do not contain valid UTF-8 text.
-    pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> result::Result<Self, Utf8Error> {
+    /// The message can be tagged as text or binary.
+    ///
+    /// # Errors
+    ///
+    /// This function validates the bytes in `data` according to the `opcode` parameter:
+    /// - For [`Opcode::Text`] it returns `Err` if the bytes in `data` do not contain valid UTF-8 text.
+    /// - For [`Opcode::Close`] it returns `Err` if `data` does not contain a two-byte close code
+    ///   followed by valid UTF-8 text, unless `data` is empty.
+    pub fn new<B: Into<Bytes>>(opcode: Opcode, data: B) -> Result<Self> {
         let data = data.into();
 
-        if opcode.is_text() {
-            str::from_utf8(&data)?;
+        match opcode {
+            Opcode::Close => match data.len() {
+                0 => {}
+                1 => {
+                    return Err("close frames must be at least 2 bytes long".into());
+                }
+                _ => {
+                    str::from_utf8(&data[2..])?;
+                }
+            },
+            Opcode::Text => {
+                str::from_utf8(&data)?;
+            }
+            _ => {}
         }
 
         Ok(Message { opcode, data })
@@ -41,7 +58,7 @@ impl Message {
         }
     }
 
-    /// Creates a binary message from any type that can be converted to `Bytes`, such as `&[u8]` or `Vec<u8>`.
+    /// Creates a binary message from any type that can be converted to [`Bytes`], such as `&[u8]` or `Vec<u8>`.
     pub fn binary<B: Into<Bytes>>(data: B) -> Self {
         Message {
             opcode: Opcode::Binary,
@@ -60,24 +77,30 @@ impl Message {
     }
 
     /// Creates a message that indicates the connection is about to be closed.
-    ///
-    /// The `reason` parameter is an optional numerical status code and text description. Valid reasons
-    /// may be defined by a particular WebSocket server.
-    pub fn close(reason: Option<(u16, String)>) -> Self {
-        let data = if let Some((code, reason)) = reason {
-            let reason: Bytes = reason.into();
-            let mut buf = BytesMut::new();
-            buf.reserve(2 + reason.len());
-            buf.put_u16(code);
-            buf.put(reason);
-            buf.freeze()
-        } else {
-            Bytes::new()
-        };
+    /// The close frame does not contain a reason.
+    #[must_use]
+    pub fn close() -> Self {
+        Message {
+            opcode: Opcode::Close,
+            data: Bytes::new(),
+        }
+    }
+
+    /// Creates a message that indicates the connection is about to be closed.
+    /// The close frame contains a code and a text reason.
+    #[must_use]
+    pub fn close_with_reason(code: CloseCode, mut reason: String) -> Self {
+        // Shorten the string so that 2 + reason.len() fits under the limit for control frames
+        let reason_len = truncate_floor_char_boundary(&mut reason, 123);
+
+        let mut data = reason.into_bytes();
+        data.extend_from_slice(&[0, 0]);
+        data.copy_within(0..reason_len, 2);
+        data[0..2].copy_from_slice(&u16::from(code).to_be_bytes());
 
         Message {
             opcode: Opcode::Close,
-            data,
+            data: data.into(),
         }
     }
 
@@ -116,7 +139,7 @@ impl Message {
         self.data
     }
 
-    /// For messages with opcode [`Opcode::Text`](enum.Opcode.html), returns a reference to the text.
+    /// For messages with opcode [`Opcode::Text`], returns a reference to the text.
     /// Returns `None` otherwise.
     pub fn as_text(&self) -> Option<&str> {
         if self.opcode.is_text() {
@@ -125,9 +148,24 @@ impl Message {
             None
         }
     }
+
+    /// For messages with opcode [`Opcode::Close`], returns the [`CloseFrame`].
+    /// Returns `None` otherwise.
+    pub fn as_close(&self) -> Option<CloseFrame> {
+        if matches!(self.opcode, Opcode::Close) && self.data.len() >= 2 {
+            let mut data = self.data.clone();
+            let code = data.get_u16();
+            Some(CloseFrame {
+                code: code.into(),
+                reason: data,
+            })
+        } else {
+            None
+        }
+    }
 }
 
-/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`](struct.Message.html) structs.
+/// Tokio codec for WebSocket messages. This codec can send and receive [`Message`] structs.
 #[derive(Clone)]
 pub struct MessageCodec {
     interrupted_message: Option<(Opcode, BytesMut)>,
@@ -138,6 +176,7 @@ impl MessageCodec {
     /// Creates a `MessageCodec` for a client.
     ///
     /// Encoded messages are masked.
+    #[must_use]
     pub fn client() -> Self {
         Self::with_masked_encode(true)
     }
@@ -145,17 +184,35 @@ impl MessageCodec {
     /// Creates a `MessageCodec` for a server.
     ///
     /// Encoded messages are not masked.
+    #[must_use]
     pub fn server() -> Self {
         Self::with_masked_encode(false)
     }
 
     /// Creates a `MessageCodec` while specifying whether to use message masking while encoding.
+    #[must_use]
     pub fn with_masked_encode(use_mask: bool) -> Self {
         Self {
             use_mask,
             interrupted_message: None,
         }
     }
+}
+
+fn truncate_floor_char_boundary(s: &mut String, new_len: usize) -> usize {
+    // TODO call str::floor_char_boundary when stable
+    let mut len = s.len();
+    if len > new_len {
+        len = new_len;
+
+        while !s.is_char_boundary(len) {
+            len -= 1;
+        }
+
+        s.truncate(len);
+    }
+
+    len
 }
 
 impl Decoder for MessageCodec {
@@ -218,7 +275,7 @@ impl Decoder for MessageCodec {
             if let Some(mask) = mask {
                 // Note: clients never need decode masked messages because masking is only used for client -> server frames.
                 // However this code is used to test round tripping of masked messages.
-                mask::mask_slice(&mut data, mask)
+                mask::mask_slice(&mut data, mask);
             };
 
             let opcode = if opcode == 0 {
@@ -244,15 +301,15 @@ impl Decoder for MessageCodec {
                     }
 
                     return Err(format!("continuation frame must have continuation opcode, not {:?}", opcode).into());
-                } else {
-                    partial_data.extend_from_slice(&data);
-
-                    if fin {
-                        break (partial_opcode, partial_data);
-                    }
-
-                    Some((partial_opcode, partial_data))
                 }
+
+                partial_data.extend_from_slice(&data);
+
+                if fin {
+                    break (partial_opcode, partial_data);
+                }
+
+                Some((partial_opcode, partial_data))
             } else if let Some(opcode) = opcode {
                 if fin {
                     break (opcode, data);
@@ -307,23 +364,82 @@ impl<'a> Encoder<&'a Message> for MessageCodec {
 mod tests {
     use assert_allocations::assert_allocated_bytes;
     use bytes::{BufMut, BytesMut};
+    use quickcheck::{Arbitrary, Gen};
     use tokio_util::codec::{Decoder, Encoder};
 
     use crate::frame::{FrameHeader, FrameHeaderCodec};
-    use crate::mask::{self, Mask};
+    use crate::mask;
+    use crate::mask::Mask;
     use crate::message::{Message, MessageCodec};
 
-    #[quickcheck]
-    fn round_trips(is_text: bool, data: String) {
-        let data_len = data.len();
+    #[derive(Clone, Debug)]
+    enum MessageInput {
+        Binary { data: Vec<u8> },
+        Close,
+        CloseWithReason { code: u16, reason: String },
+        Text { data: String },
+    }
 
-        let message = assert_allocated_bytes(0, || {
-            if is_text {
-                Message::text(data)
-            } else {
-                Message::binary(data.into_bytes())
+    impl Arbitrary for MessageInput {
+        fn arbitrary(g: &mut Gen) -> Self {
+            match u8::arbitrary(g) % 4 {
+                0 => Self::Binary {
+                    data: Arbitrary::arbitrary(g),
+                },
+                1 => Self::Close,
+                2 => {
+                    let (code, mut reason) = <(u16, String)>::arbitrary(g);
+                    super::truncate_floor_char_boundary(&mut reason, 123); // so that 2 + reason.len() fits under the limit for control frames
+                    Self::CloseWithReason { code, reason }
+                }
+                _ => Self::Text {
+                    data: Arbitrary::arbitrary(g),
+                },
             }
-        });
+        }
+
+        fn shrink(&self) -> Box<dyn Iterator<Item = Self>> {
+            match self.clone() {
+                Self::Binary { data } => Box::new(data.shrink().map(|data| Self::Binary { data })),
+                Self::Close => quickcheck::empty_shrinker(),
+                Self::CloseWithReason { code, reason } => Box::new(
+                    (code, reason)
+                        .shrink()
+                        .map(|(code, reason)| Self::CloseWithReason { code, reason }),
+                ),
+                Self::Text { data } => Box::new(data.shrink().map(|data| Self::Text { data })),
+            }
+        }
+    }
+
+    impl MessageInput {
+        fn data_len(&self) -> usize {
+            match self {
+                Self::Binary { data } => data.len(),
+                Self::Close => 0,
+                Self::CloseWithReason { code: _, reason } => 2 + reason.len(),
+                Self::Text { data } => data.len(),
+            }
+        }
+
+        fn into_message(self) -> Message {
+            match self {
+                Self::Text { data } => Message::text(data),
+                Self::Close => Message::close(),
+                Self::CloseWithReason { code, reason } => Message::close_with_reason(code.into(), reason),
+                Self::Binary { data } => Message::binary(data),
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn round_trips(mut input: MessageInput) {
+        let data_len = input.data_len();
+        if let MessageInput::CloseWithReason { reason, .. } = &mut input {
+            reason.reserve_exact(2); // to ensure no allocations when reason is passed to Message::close_with_reason
+        }
+
+        let message = assert_allocated_bytes(0, || input.into_message());
 
         // thread_rng performs a one-off memory allocation the first time it is used on a given thread.
         // We make that allocation here, instead of inside the assert_allocated_bytes block below.
@@ -336,7 +452,7 @@ mod tests {
             || {
                 MessageCodec::client()
                     .encode(&message, &mut bytes)
-                    .expect("didn't expect MessageCodec::encode to return an error")
+                    .expect("didn't expect MessageCodec::encode to return an error");
             }
         });
 
@@ -355,13 +471,14 @@ mod tests {
     }
 
     #[quickcheck]
+    #[allow(clippy::needless_pass_by_value)] // clippy wants &str, but quickcheck can only give us String
     fn round_trips_via_frame_header(is_text: bool, mask: Option<u32>, data: String) {
         let header = assert_allocated_bytes(0, || {
             FrameHeader {
                 fin: true, // TODO test messages split across frames
                 rsv: 0,
                 opcode: if is_text { 1 } else { 2 },
-                mask: mask.map(|n| n.into()),
+                mask: mask.map(Into::into),
                 data_len: data.len().into(),
             }
         });

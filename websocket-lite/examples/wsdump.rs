@@ -1,9 +1,10 @@
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 use std::time::Duration;
 
-use futures::future::{self, FutureExt};
-use futures::sink::SinkExt;
-use futures::stream::StreamExt;
+use futures_util::future::FutureExt;
+use futures_util::sink::SinkExt;
+use futures_util::stream::StreamExt;
 use structopt::StructOpt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::time;
@@ -43,7 +44,8 @@ async fn main() -> Result<()> {
         }
 
         time::sleep(eof_wait).await;
-        Ok(())
+
+        Ok(()) as Result<()>
     };
 
     let recv_loop = async {
@@ -75,10 +77,10 @@ async fn main() -> Result<()> {
         Ok(()) as Result<()>
     };
 
-    future::select(send_loop.boxed(), recv_loop.boxed())
-        .await
-        .into_inner()
-        .0?;
+    tokio::select! {
+        _ = send_loop.boxed() => {},
+        _ = recv_loop.boxed() => {},
+    };
 
     Ok(())
 }
