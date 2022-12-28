@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20220531 as deps
+FROM ubuntu:bionic-20221130 as deps
 
 RUN apt-get -y update && apt-get -y install \
     clang \
@@ -64,7 +64,7 @@ FROM build as fuzz
 RUN mv rust-nightly-toolchain rust-toolchain
 RUN cargo fuzz build
 
-FROM ubuntu:bionic-20220531 as app
+FROM ubuntu:bionic-20221130 as app
 
 RUN apt-get -y update && apt-get -y install \
     ca-certificates \
