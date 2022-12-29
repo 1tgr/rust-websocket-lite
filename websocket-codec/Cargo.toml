@@ -9,7 +9,7 @@ edition = "2018"
 readme = "../README.md"
 
 [dependencies]
-base64 = "0.13"
+base64 = "0.20"
 byteorder = "1"
 bytes = "1"
 httparse = "1"
