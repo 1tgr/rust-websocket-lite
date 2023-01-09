@@ -9,7 +9,7 @@ edition = "2018"
 readme = "../README.md"
 
 [dependencies]
-base64 = "0.13"
+base64 = "0.21"
 bytes = "1"
 futures-util = { version = "0.3", default-features = false }
 native-tls = { version = "0.2", optional = true }
